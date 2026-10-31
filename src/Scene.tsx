@@ -46,7 +46,7 @@ import { Underwater } from './world/underwater';
 import { waveAtWater, waterRenderY } from './water/waveHeight';
 import { Forest, Meadow, parkBushGeo, parkGrassOnCompile, tuftGeo } from './world/forest';
 import { treeGeo, coniferGeo, palmFrondTex, palmTrunkTex, palmGeo, cherryLeafShader, palmFrondShader, TREE_TYPES, TREE_PATTERN, treeWindTime, trunkWindShader, leafWindShader } from './world/trees';
-import { FxaaPass, HeroHDPass, OutlinePass, OUTLINE_STATE } from './render/passes';
+import { FxaaPass, HeroHDPass, OutlinePass, OUTLINE_STATE, WATERLINE } from './render/passes';
 export { SHARPEN, FXAA_STATE, OUTLINE_STATE } from './render/passes';
 import { City, TenementBlock, Sky } from './world/cityScenery';
 import { waveSumJS } from './water/waves';
@@ -340,7 +340,7 @@ export function buildRig(data: any = heroData, materialOverride?: THREE.MeshLamb
 // Mixamo-derived clips, retargeted offline (tools/fbx2clip.mjs) onto the generated rig
 export type Clip = { fps: number; n: number; bones: string[]; q: number[]; hy: number[] };
 export const CLIPS: Record<string, Clip> = { idle: clipIdle as any, jump: clipJump as any, wall: clipWall as any, punch: clipPunch as any, swim: clipSwim as any, run: clipRun as any };
-const _wd = new THREE.Vector3(), _wp = new THREE.Vector3();
+const _wd = new THREE.Vector3(), _wp = new THREE.Vector3(), _wr = new THREE.Vector3(), _wu = new THREE.Vector3();
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();
 export function sampleClip(c: Clip, t: number, loop: boolean, bones: THREE.Bone[], w: number) {
     let f = t * c.fps; if (loop) f = ((f % c.n) + c.n) % c.n; else f = Math.max(0, Math.min(c.n - 1, f));
@@ -526,21 +526,32 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
             if (uw) { const dq = Math.round(TOD.day.value * 20); if (uw.dataset.dq !== String(dq)) { uw.dataset.dq = String(dq); const d = dq / 20, k = 0.12 + 0.88 * d, c = (r: number, g: number, b: number, a: number) => `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${(a + (1 - d) * 0.25).toFixed(2)})`;
                 uw.style.background = `linear-gradient(180deg, ${c(110, 215, 235, 0.24)}, ${c(30, 140, 175, 0.3)} 45%, ${c(8, 70, 105, 0.5)})`; } }   // underwater tint follows the light: the fixed bright-teal wash used to light up the night sea from inside
             const inBay = camera.position.z < WATER_Z + 2, inLake = isLakeWater(camera.position.x, camera.position.z), inWater = inBay || inLake;
-            const surfaceY = inLake ? waterSurfaceAt(camera.position.x, camera.position.z, sim.t) : waterRenderY(camera.position.x, camera.position.z, sim.t); const dy = camera.position.y - surfaceY; const under = inWater && dy < 0;   // env-iter3: ocean uses the real swell height (was the flat sea level, so troughs read as underwater)
+            const surfaceY = inLake ? waterSurfaceAt(camera.position.x, camera.position.z, sim.t) : waterRenderY(camera.position.x, camera.position.z, sim.t); const dy = camera.position.y - surfaceY; const split = inWater && dy > -0.6 && dy < 0.9, under = inWater && dy <= -0.6 || (inWater && dy < 0 && !split);
+            const camY0 = camera.position.y;   // split lens: render the frame from just above the swell, the post pass draws the underwater half from the real lens height
+            if (split && dy < 0.12) { camera.position.y = surfaceY + 0.12; camera.updateMatrixWorld(); }   // env-iter3: ocean uses the real swell height (was the flat sea level, so troughs read as underwater)
             // Shifat Oct 29 "use underwater fogs inside ocean": these statements had slipped into the comment above, so the underwater
             // state never switched on. Now: underwater background + a scene fog that thickens with depth (deeper = darker, shorter view).
             UW.on = under; if (under) (state.scene.background as THREE.Color).copy(UWF.value); if (DBG) (window as any).__scene = state.scene;
             // Shifat Oct 29: "fog should only be visible at great distance, not close" -> linear fog: clear water near you, fog only far off.
             if (!(state.scene.fog instanceof THREE.Fog)) state.scene.fog = new THREE.Fog(UWF.value.getHex(), 1e4, 2e4);   // kept for the whole session (pushed out of reach above water) so entering water causes no shader recompiles
             { const fg = state.scene.fog as THREE.Fog; if (under) { const deep = Math.min(1, Math.max(0, -dy / 30)); fg.color.copy(UWF.value).multiplyScalar(1 - 0.45 * deep); fg.near = 55 - 15 * deep; fg.far = 190 - 50 * deep; (state.scene.background as THREE.Color).copy(fg.color); } else { fg.near = 1e4; fg.far = 2e4; } }
-            if (uw) {
-                if (inWater && dy < 1.2 && dy > -2.2) {
-                    // project the waterline a little ahead of the camera to find where the surface cuts the screen
-                    camera.getWorldDirection(_wd); const hx = _wd.x, hz = _wd.z, hl = Math.hypot(hx, hz) || 1;
-                    const ax = camera.position.x + hx / hl * 11, az = camera.position.z + hz / hl * 11; _wp.set(ax, waterRenderY(ax, az, sim.t), az).project(camera);
-                    const yPct = Math.max(0, Math.min(100, (1 - (_wp.y * 0.5 + 0.5)) * 100));
-                    { const mk = `linear-gradient(180deg, transparent ${Math.max(0, yPct - 3)}%, #000 ${Math.min(100, yPct + 7)}%)`; uw.style.maskImage = mk; (uw.style as any).webkitMaskImage = mk; } uw.style.opacity = '1'; uw.dataset.split = '1';   // waterline tint edge fades over about 10% of the screen instead of a hard clip
-                } else { uw.style.maskImage = 'none'; (uw.style as any).webkitMaskImage = 'none'; uw.style.opacity = under ? '1' : '0'; uw.dataset.split = '0'; }
+            {   // Shifat Oct 31 12:27 'air water split view': the lens straddles the surface. The post pass gives everything below the wave line the
+                // underwater look (same fog colour as diving). Line = where rays at 1 m from the lens dip under the local wave plane (tilts with the swell).
+                WATERLINE.v.w = 0;
+                if (split) {
+                    const cp2 = camera as THREE.PerspectiveCamera, d = 1.0, sf = (x: number, z: number) => inLake ? waterSurfaceAt(x, z, sim.t) : waterRenderY(x, z, sim.t);
+                    camera.getWorldDirection(_wd); _wr.set(1, 0, 0).applyQuaternion(camera.quaternion); _wu.set(0, 1, 0).applyQuaternion(camera.quaternion);
+                    const lx = camera.position.x + _wd.x * d, lz = camera.position.z + _wd.z * d, h0 = sf(lx, lz);
+                    const gx = sf(lx + 0.5, lz) - sf(lx - 0.5, lz), gz = sf(lx, lz + 0.5) - sf(lx, lz - 0.5);
+                    const gv = (v: THREE.Vector3) => v.y - gx * v.x - gz * v.z, ty = Math.tan(cp2.fov * Math.PI / 360), tx = ty * cp2.aspect;
+                    WATERLINE.v.set(d * tx * gv(_wr), d * ty * gv(_wu), d * gv(_wd) + camY0 - h0, 1);
+                    WATERLINE.col.copy(UWF.value);
+                    if (DBG) (window as any).__wl = [WATERLINE.v.toArray(), dy, h0];
+                }
+            }
+            if (uw) {   // full underwater wash only; the split is drawn by the post pass now
+                if (uw.dataset.split !== '0' || uw.style.maskImage !== 'none') { uw.style.maskImage = 'none'; (uw.style as any).webkitMaskImage = 'none'; uw.dataset.split = '0'; }
+                const op = under ? '1' : '0'; if (uw.style.opacity !== op) uw.style.opacity = op;
             }
         }
         // hero

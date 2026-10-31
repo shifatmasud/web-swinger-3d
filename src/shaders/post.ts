@@ -28,7 +28,7 @@ export const FXAA_SHARP_FS = FXAA_FS.replace('uniform vec2 uRes;', 'uniform vec2
   }
   gl_FragColor = vec4(col, 1.0);
 }`);
-export const OUT_FS = `uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uNear; uniform float uFar; uniform float uTh; uniform float uOn; varying vec2 vUv;
+export const OUT_FS = `uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uNear; uniform float uFar; uniform float uTh; uniform float uOn; uniform vec4 uWL; uniform vec3 uUwC; varying vec2 vUv;
 float vz(vec2 uv){ float d = texture2D(tDepth, uv).x; float zn = d * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - zn * (uFar - uNear)); }
 void main(){
   vec4 c4 = texture2D(tColor, vUv); vec3 c = c4.rgb;
@@ -45,5 +45,21 @@ void main(){
     e = max(max((zx1 - z) * (1.0 - land.x), (zx2 - z) * (1.0 - land.y)), max((zy1 - z) * (1.0 - land.z), (zy2 - z) * (1.0 - land.w))) / z;
   }
   float k = smoothstep(0.12, 0.30, e) * (1.0 - smoothstep(22.0, 55.0, z)) * uOn * lightMask;
-  gl_FragColor = vec4(mix(c, vec3(0.04, 0.05, 0.10), k * 0.85), 1.0);
+  c = mix(c, vec3(0.04, 0.05, 0.10), k * 0.85);
+  if (uWL.w > 0.5) {   // Shifat Oct 31 12:27: half-in/half-out lens. Below the wave line the frame gets the same underwater look as diving (fog colour toward the line, teal light falloff below), with a thin meniscus on the line.
+    float wd = dot(uWL.xyz, vec3(vUv * 2.0 - 1.0, 1.0)) / max(length(uWL.xy), 1e-4);
+    float un = smoothstep(0.004, -0.004, wd);
+    if (un > 0.0) {
+      float below = clamp(-wd, 0.0, 2.0);
+      vec3 cu = c * vec3(0.42, 0.78, 0.88) + uUwC * 0.22;
+      vec3 fogc = uUwC * vec3(0.85, 1.38, 1.18) * mix(1.25, 0.85, smoothstep(0.0, 1.6, below));   // brighter just under the surface, darker looking down (same falloff as the dive wash)
+      float fg = max(1.0 - smoothstep(0.05, 1.0, below) * 0.7, smoothstep(25.0, 120.0, z));
+      cu = mix(cu, fogc, fg);
+      c = mix(c, cu, un);
+    }
+    float mn = 1.0 - smoothstep(0.0, 0.018, abs(wd));
+    c = mix(c, uUwC * 0.45, mn * 0.55);
+    c += vec3(0.10, 0.14, 0.15) * (1.0 - smoothstep(0.0, 0.035, abs(wd - 0.02))) * 0.6;
+  }
+  gl_FragColor = vec4(c, 1.0);
 }`;
