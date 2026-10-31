@@ -84,6 +84,37 @@ function Island({ sim, kit }: { sim: Sim; kit: SouthSeaKit }) {
         pineTrunk: Object.assign(new THREE.MeshLambertMaterial({ map: tex.pbark, bumpMap: tex.pbark, bumpScale: 2.2, vertexColors: true, emissive: '#4a3a2c', side: THREE.DoubleSide }), { onBeforeCompile: hazeShader(kit.tod, kit.trunkWindShader), customProgramCacheKey: () => 'islPineTrunk' }),
         pineLeaf: Object.assign(new THREE.MeshLambertMaterial({ map: tex.pine, vertexColors: true, emissive: '#1f3a22', alphaTest: 0.5, side: THREE.DoubleSide }), { onBeforeCompile: hazeShader(kit.tod, kit.leafWindShader), customProgramCacheKey: () => 'islPineLeaf' }),
     }), []);
+    /* 25 fps pass (Oct 31): island trees were 16 instanced draw calls (each species' trunk + leaves). Species sharing a material now go in ONE
+       BatchedMesh per material (wind sway reads the batching matrix, per-tree tint kept as batch colour, per-tree frustum culling). */
+    const vegSpecs = useMemo(() => [
+        ['pAt', geos.pA.trunk, mats.palmTrunk, veg.palmA, '#ffffff', '#e8dccb'], ['pAl', PHONE ? geos.pA.lo : geos.pA.leaves, mats.palmLeaf, veg.palmA, '#ffffff', '#d8e8a8'],
+        ['pBt', geos.pB.trunk, mats.palmTrunk, veg.palmB, '#f0e6d6', '#ffffff'], ['pBl', geos.pB.lo, mats.palmLeaf, veg.palmB, '#c8f0a0', '#ffffff'],
+        ['bt', geos.t.trunk, mats.trunk, veg.broad, '#ffffff', '#d8cfc4'], ['bl', geos.t.leaves, mats.leaf, veg.broad, '#ffffff', '#b8e890'],
+        ['ut', geos.u.trunk, mats.trunk, veg.tall, '#ffffff', '#e0d8d0'], ['ul', geos.u.leaves, mats.leaf, veg.tall, '#ffffff', '#c8e8a8'],
+        ['pnt', geos.pine.trunk, mats.pineTrunk, veg.pine, '#ffffff', '#e0d8d0'], ['pnl', geos.pine.leaves, mats.pineLeaf, veg.pine, '#7fa898', '#6a9a84'],
+        ['spt', geos.spruce.trunk, mats.pineTrunk, veg.spruce, '#ffffff', '#e0d8d0'], ['spl', geos.spruce.leaves, mats.pineLeaf, veg.spruce, '#5f8a62', '#6f9a70'],
+        ['cht', geos.cherry.trunk, mats.trunk, veg.cherry, '#ffffff', '#e0d8d0'], ['chl', geos.cherry.leaves, mats.leafDeep, veg.cherry, '#e8f0c0', '#ffffff'],
+    ] as [string, THREE.BufferGeometry, THREE.Material, Inst[], string, string][], []);
+    const vegBatch = useMemo(() => {
+        const byMat = new Map<THREE.Material, typeof vegSpecs>(), keys = new Set<string>(), meshes: THREE.BatchedMesh[] = [];
+        const sig = (g: THREE.BufferGeometry) => Object.keys(g.attributes).sort().join(',') + (g.index ? '#i' : '#n');
+        for (const s of vegSpecs) { if (!s[3].length) continue; const a = byMat.get(s[2]) ?? []; a.push(s); byMat.set(s[2], a); }
+        const o = new THREE.Object3D(), c = new THREE.Color(), cb = new THREE.Color();
+        for (const [mat, list0] of byMat) {
+            const list = list0.filter((s) => sig(s[1]) === sig(list0[0][1]));
+            if (list.length < 2) continue;
+            let nv = 0, ni = 0, nInst = 0; for (const s of list) { nv += s[1].attributes.position.count; ni += s[1].index ? s[1].index.count : 0; nInst += s[3].length; }
+            const bm = new THREE.BatchedMesh(nInst, nv, list[0][1].index ? ni : undefined, mat);
+            bm.sortObjects = false; bm.perObjectFrustumCulled = true; bm.frustumCulled = false;
+            for (const s of list) {
+                const gid = bm.addGeometry(s[1]); keys.add(s[0]); cb.set(s[5]);
+                for (const p of s[3]) { o.position.set(p.x, p.y, p.z); o.rotation.set(0, p.r, 0); o.scale.set(p.s, p.s * (p.sy ?? 1), p.s); o.updateMatrix(); const id = bm.addInstance(gid); bm.setMatrixAt(id, o.matrix); bm.setColorAt(id, c.set(s[4]).lerp(cb, p.tint ?? 0)); }
+            }
+            meshes.push(bm);
+        }
+        return { meshes, keys };
+    }, [vegSpecs]);
+    useEffect(() => () => { for (const m of vegBatch.meshes) m.dispose(); }, [vegBatch]);
     const vegRef = useRef<THREE.Group>(null!), nearRef = useRef<THREE.Group>(null!), grassRef = useRef<THREE.Group>(null!);
     const inst = useRef<Record<string, THREE.InstancedMesh | null>>({});
     useEffect(() => {
@@ -130,15 +161,10 @@ function Island({ sim, kit }: { sim: Sim; kit: SouthSeaKit }) {
         <mesh geometry={shacks} material={propMat} />
         <mesh geometry={dock} material={propMat} />
         <group ref={vegRef}>
-            {I('pAt', geos.pA.trunk, mats.palmTrunk, veg.palmA.length)}{I('pAl', PHONE ? geos.pA.lo : geos.pA.leaves, mats.palmLeaf, veg.palmA.length)}
-            {I('pBt', geos.pB.trunk, mats.palmTrunk, veg.palmB.length)}{I('pBl', geos.pB.lo, mats.palmLeaf, veg.palmB.length)}
-            {I('bt', geos.t.trunk, mats.trunk, veg.broad.length)}{I('bl', geos.t.leaves, mats.leaf, veg.broad.length)}
-            {I('ut', geos.u.trunk, mats.trunk, veg.tall.length)}{I('ul', geos.u.leaves, mats.leaf, veg.tall.length)}
+            {vegBatch.meshes.map((m, i) => <primitive key={'vb' + i} object={m} />)}
+            {vegSpecs.filter((s) => !vegBatch.keys.has(s[0])).map((s) => <React.Fragment key={s[0]}>{I(s[0], s[1], s[2], s[3].length)}</React.Fragment>)}
             {I('bush', geos.b.leaves, mats.bush, veg.bush.length)}
             {I('rock', geos.rock, mats.rock, veg.rock.length)}
-            {I('pnt', geos.pine.trunk, mats.pineTrunk, veg.pine.length)}{I('pnl', geos.pine.leaves, mats.pineLeaf, veg.pine.length)}
-            {I('spt', geos.spruce.trunk, mats.pineTrunk, veg.spruce.length)}{I('spl', geos.spruce.leaves, mats.pineLeaf, veg.spruce.length)}
-            {I('cht', geos.cherry.trunk, mats.trunk, veg.cherry.length)}{I('chl', geos.cherry.leaves, mats.leafDeep, veg.cherry.length)}
         </group>
         <group ref={grassRef}><instancedMesh ref={(m) => { inst.current['grass'] = m; }} userData={{ outlineMaskAlpha: 0.5, outlineMaskThreshold: 0.75 }} args={[geos.grass, mats.grass, grassPool.N]} frustumCulled={false} /></group>
         <mesh geometry={river} material={RIVER_MAT} renderOrder={1} frustumCulled={false} />

@@ -247,7 +247,11 @@ export const treeWindTime = { value: 0 };
 const treeWind = (leaf: boolean) => (sh: any) => {
     sh.uniforms.uTreeWindTime = treeWindTime;
     sh.vertexShader = 'uniform float uTreeWindTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    #ifdef USE_BATCHING
+    vec2 windRoot = batchingMatrix[3].xz;
+    #else
     vec2 windRoot = instanceMatrix[3].xz;
+    #endif
     float windPhase = windRoot.x * 0.035 + windRoot.y * 0.027;
     float windHeight = max(position.y, 0.0);
     float windBend = windHeight * windHeight * (sin(uTreeWindTime * 0.75 + windPhase) * 0.0024 + sin(uTreeWindTime * 1.17 + windPhase * 1.7) * 0.0009);

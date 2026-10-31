@@ -25,6 +25,9 @@ export function hazeShader(tod: SouthSeaKit['tod'], inner?: (sh: any) => void) {
         #ifdef USE_INSTANCING
         hzp = instanceMatrix * hzp;
         #endif
+        #ifdef USE_BATCHING
+        hzp = batchingMatrix * hzp;
+        #endif
         vHzW = (modelMatrix * hzp).xyz; }`);
         sh.fragmentShader = 'varying vec3 vHzW; uniform vec3 uHazeCol; uniform float uHazeK;\n' + sh.fragmentShader.replace('#include <fog_fragment>', `#include <fog_fragment>
         if (cameraPosition.y > -0.6) { float hzd = length(vHzW - cameraPosition); gl_FragColor.rgb = mix(gl_FragColor.rgb, uHazeCol, min(0.93, 1.0 - exp(-hzd * uHazeK))); }`);
