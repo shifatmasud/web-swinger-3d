@@ -262,7 +262,7 @@ export function GiantBoss({ sim, mini = false }: { sim: Sim; mini?: boolean }) {
     }, [rig]);
 
     useFrame((_st, rawDt) => {
-        const dt = Math.max(0.001, Math.min(0.05, rawDt));
+        const dt = Math.max(0.001, Math.min(0.1, rawDt));
         const boss = sim.enemies.find((e) => e.boss && !!(e as any).mini === mini);   // South Sea 4: a second rig draws Neon Harbor's mini-boss
         if (!boss || sim.mode !== 'play') { root.visible = false; return; }
         /* Shifat 9:43 AM 'freeze what's not visible': each boss rig is ~40 separate meshes (armour, muscles, eyes, thrusters, outlines) = ~40 draw calls.

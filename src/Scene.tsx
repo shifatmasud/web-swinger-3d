@@ -440,7 +440,7 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
     const visor = useMemo(() => new THREE.MeshBasicMaterial({ color: '#0b0c18' }), []);
 
     useFrame((state, rawDt) => {
-        const dt = Math.min(0.05, rawDt) * (DBG && (window as any).__ts != null ? (window as any).__ts : 1);   // test hook: frame-exact stills
+        const dt = Math.min(0.1, rawDt) * (DBG && (window as any).__ts != null ? (window as any).__ts : 1);   /* Shifat 9:33 AM 'animation feels slow on ocean': the 50 ms cap made the whole game run in slow motion below 20 fps; now real time down to 10 fps */   // test hook: frame-exact stills
         sim.t += dt;
         // adaptive resolution (device-friendly)
         const rd = Math.min(0.25, rawDt); ema.current += (rd * 1000 - ema.current) * 0.05; perf.fps = 1000 / ema.current; adapt.current += rd;
@@ -457,7 +457,7 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
             if (Math.abs(ns - curScale.current) > 0.01) { curScale.current = ns; perf.scale = ns; applyRatio(gl, Math.min(window.devicePixelRatio || 1, coarse ? QK.dprCap : QK.dprCap) * ns); }
         }
         if (sim.mode === 'play') {
-            for (let i = 0; i < 2; i++) stepSim(sim, dt / 2, ev);
+            { const n = Math.max(2, Math.ceil(dt / 0.025)); for (let i = 0; i < n; i++) stepSim(sim, dt / n, ev); }   // same <=25 ms physics steps as before
             stepBeacon(sim, ev);
             sim.time += dt;
         } else sim.yaw += dt * 0.15;
