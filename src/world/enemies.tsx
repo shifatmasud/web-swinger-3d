@@ -131,6 +131,10 @@ export function EnemyDeathFx({ sim }: { sim: Sim }) {
             }
             seenDown.current.set(e, down);
         }
+        /* Shifat 9:43 AM 'freeze what's not visible': with no explosion playing, the 4 effect batches were still drawn (scaled to 0) and re-filled every frame */
+        const anyOn = slots.current.some((s) => s.active && sim.t - s.born >= 0 && sim.t - s.born < DEATH_FX_LIFE + 0.1);
+        for (const m of [core.current, flames.current, embers.current, rings.current]) if (m) m.visible = anyOn;
+        if (!anyOn) { for (const s of slots.current) s.active = false; if (DBG && core.current) core.current.userData.activeEffects = 0; return; }
         let active = 0;
         for (let i = 0; i < DEATH_FX_SLOTS; i++) {
             const s = slots.current[i], age = sim.t - s.born, on = s.active && age >= 0 && age < DEATH_FX_LIFE;
