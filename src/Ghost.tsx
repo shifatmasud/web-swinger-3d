@@ -196,9 +196,9 @@ function setRigOpacity(root: THREE.Object3D, opacity: number) {
         for (const material of materials) {
             if (material.opacity === undefined) continue;
             material.opacity = opacity;
-            material.transparent = opacity < 0.999;
-            material.depthWrite = opacity >= 0.999;
-            material.needsUpdate = true;
+            const tr = opacity < 0.999;   // 25 fps pass: only recompile when transparency actually flips (was every frame -> a program lookup per material per frame)
+            if (material.transparent !== tr) { material.transparent = tr; material.needsUpdate = true; }
+            material.depthWrite = !tr;
         }
     });
 }
