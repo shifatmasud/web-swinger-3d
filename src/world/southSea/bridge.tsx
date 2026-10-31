@@ -52,14 +52,12 @@ function cableGeo() {
 function lampHeadGeo() { const parts: THREE.BufferGeometry[] = []; for (let u = 15; u < BRIDGE_L; u += 30) { const y = bridgeDeckU(u), sx = (Math.round(u / 30) % 2) ? 1 : -1; const g = new THREE.SphereGeometry(0.35, 6, 4); g.translate(BRIDGE.x + sx * (BRIDGE.hw - 0.5), y + 6.1, BRIDGE.z0 - u); parts.push(g); } return merged(parts); }
 // (3b) the bridge's traffic is the game's flying cars (sim CARS axis 2), drawn by FlyingCars with the city ones
 export function Bridge({ sim, kit }: { sim: Sim; kit: SouthSeaKit }) {
-    const deck = useMemo(bridgeDeckGeo, []), struct = useMemo(bridgeStructGeo, []), cables = useMemo(cableGeo, []), heads = useMemo(lampHeadGeo, []);
+    const body = useMemo(() => merged([bridgeDeckGeo(), bridgeStructGeo(), cableGeo()]), []), heads = useMemo(lampHeadGeo, []);   // 25 fps pass: deck + structure + cables share one material -> one draw call
     const mat = useMemo(() => { const m = new THREE.MeshLambertMaterial({ vertexColors: true }); m.onBeforeCompile = hazeShader(kit.tod); return m; }, []);
     const lampMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ffe7a8' }), []);
     useFrame(() => { const night = 1 - kit.tod.day.value; lampMat.color.setRGB(1, 0.91, 0.66).multiplyScalar(0.35 + 0.9 * night); });
     return <group name="south-sea-bridge">
-        <mesh geometry={deck} material={mat} frustumCulled={false} />
-        <mesh geometry={struct} material={mat} frustumCulled={false} />
-        <mesh geometry={cables} material={mat} frustumCulled={false} />
+        <mesh geometry={body} material={mat} frustumCulled={false} />
         <mesh geometry={heads} material={lampMat} onUpdate={(o2) => o2.layers.enable(SELECTIVE_BLOOM_LAYER)} frustumCulled={false} />
     </group>;
 }

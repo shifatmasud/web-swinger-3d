@@ -146,7 +146,7 @@ const HCX = (HARBOR.x0 + HARBOR.x1) / 2, HCZ = (HARBOR.z0 + HARBOR.z1) / 2;
 export const CITY_LOD = { far: false };
 export function NeonHarbor({ kit }: { kit: SouthSeaKit }) {
     const towers = useMemo(harborTowerGeo, []), tmat = useMemo(() => harborTowerMat(kit.tod), []);
-    const plat = useMemo(harborPlatformGeo, []), trim = useMemo(harborNeonTrimGeo, []), signs = useMemo(harborSignsGeo, []), stilts = useMemo(harborStiltsGeo, []), lamps = useMemo(harborLampsGeo, []), imp = useMemo(cityImpostorGeo, []);
+    const plat = useMemo(harborPlatformGeo, []), trim = useMemo(harborNeonTrimGeo, []), signs = useMemo(harborSignsGeo, []), stilts = useMemo(harborStiltsGeo, []), lamps = useMemo(harborLampsGeo, []), stiltPosts = useMemo(() => merged([stilts, lamps.posts]), [stilts, lamps]), imp = useMemo(cityImpostorGeo, []);
     const pmat = useMemo(() => { const m = new THREE.MeshLambertMaterial({ vertexColors: true }); m.onBeforeCompile = hazeShader(kit.tod); return m; }, []);
     const platMat = useMemo(() => { const m = new THREE.MeshLambertMaterial({ vertexColors: true }); m.onBeforeCompile = hazeShader(kit.tod, paveShader); m.customProgramCacheKey = () => 'harbor-pave'; return m; }, []);   /* own cache key: the shared hazeShader closure would reuse pmat's program */
     const trimMat = useMemo(() => new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), []);
@@ -167,8 +167,7 @@ export function NeonHarbor({ kit }: { kit: SouthSeaKit }) {
         <mesh ref={impRef} geometry={imp} material={impMat} visible={false} frustumCulled={false} />
         <group ref={near}>
             <mesh geometry={signs} material={SIGN_MAT} onUpdate={(o) => o.layers.enable(SELECTIVE_BLOOM_LAYER)} frustumCulled={false} />
-            <mesh geometry={stilts} material={pmat} frustumCulled={false} />
-            <mesh geometry={lamps.posts} material={pmat} frustumCulled={false} />
+            <mesh geometry={stiltPosts} material={pmat} frustumCulled={false} />   {/* 25 fps pass: stilts + lamp posts share pmat -> one draw call */}
             <mesh geometry={lamps.heads} material={lampMat} onUpdate={(o) => o.layers.enable(SELECTIVE_BLOOM_LAYER)} frustumCulled={false} />
         </group>
     </group>;
