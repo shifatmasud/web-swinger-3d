@@ -101,6 +101,8 @@ function matSig(m: THREE.Material): string {
     return [l.type, l.color?.getHexString(), l.emissive?.getHexString(), l.emissiveIntensity, l.map?.uuid, l.alphaMap?.uuid, l.aoMap?.uuid, l.vertexColors, l.transparent, l.opacity, l.alphaTest, l.side, l.flatShading].join('|');
 }
 function attrSig(g: THREE.BufferGeometry): string { return Object.keys(g.attributes).sort().map((k) => k + g.attributes[k].itemSize).join(',') + (g.index ? '#i' : '#n'); }
+const SHARED_MATS = new Map<string, THREE.Material>();   // 25 fps pass: identical materials across ALL kit models share one instance, so consecutive draws skip the per-material uniform refresh
+function shareMat(m: THREE.Material): THREE.Material { const k = matSig(m) + '|' + (m as any).name; const s = SHARED_MATS.get(k); if (s) return s; SHARED_MATS.set(k, m); return m; }
 function mergeParts(parts: Part[]): Part[] {
     const groups = new Map<string, Part[]>(), out: Part[] = [];
     for (const p of parts) {
@@ -115,6 +117,7 @@ function mergeParts(parts: Part[]): Part[] {
         g.computeBoundingBox(); g.computeBoundingSphere();
         out.push({ geometry: g, material: a[0].material });
     }
+    for (const p of out) if (!Array.isArray(p.material)) p.material = shareMat(p.material);
     return out;
 }
 
