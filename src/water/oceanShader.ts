@@ -249,6 +249,10 @@ export const OCEAN_FRAG = '#include <packing>\n#define WG_CHOP gChop\nbool gChop
         vec3 zc = vec3(0.55, 0.76, 0.96) * mix(0.12, 1.0, uDay);   /* AAA Snell window: a bright sky disc overhead (was a dull dark-blue zenith) with the sun blazing through it */
         vec3 sr = mix(uSky, zc, smoothstep(0.0, 0.45, tr.y)), sg = mix(uSky, zc, smoothstep(0.0, 0.45, tg.y)), sb = mix(uSky, zc, smoothstep(0.0, 0.45, tb.y));
         vec3 win = vec3(sr.r, sg.g, sb.b);
+        if (!tir) {   /* Shifat 2:36 PM 'water surface when underwater must show what's in the air': the skyline ring (city, bridge, island) inside Snell's window, refracted (squeezed toward the window rim) and wobbling with the surface - one fetch */
+          vec3 tn = normalize(tg); vec4 skw = texture2D(uSkyl, vec2(atan(tn.x, tn.z) * 0.15915494 + 0.5, 0.5));
+          float tw = skw.a * 0.35 * 1.8 + 0.01, ew = asin(clamp(tn.y, 0.0, 1.0)), cw = smoothstep(tw + 0.03, tw - 0.03, ew) * step(0.004, skw.a);
+          win = mix(win, skw.rgb * mix(0.3, 0.5, uDay), cw * 0.9); }   // seen from below against the bright sky disc, the shore reads as a darker silhouette band at the rim
         if (!tir) win += vec3(1.0, 0.95, 0.82) * (pow(max(dot(normalize(tg), uSun), 0.0), 220.0) * 3.0 + pow(max(dot(normalize(tg), uSun), 0.0), 12.0) * 0.25) * uDay;
         // A narrow rough-surface critical-angle transition avoids a binary colour/alpha rim.
         float critical = smoothstep(0.84, 1.04, s2);

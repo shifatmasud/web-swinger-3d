@@ -125,10 +125,9 @@ export function ReflectionIllusion({ sim }: { sim: Sim }) {
         const u = waterMat.uniforms, cam = camera as THREE.PerspectiveCamera;
         HERO_REFL.shadow.set(sim.pos[0], sim.pos[1], sim.pos[2], sim.mode === 'play' ? 1 : 0); u.uHeroA.value.copy(HERO_REFL.shadow); u.uHeroB.value.copy(HERO_REFL.ghost); HERO_REFL.shadowDir.set(Math.sin(sim.yaw), 0, Math.cos(sim.yaw), sim.swim && !sim.dive ? 1 : 0); u.uHeroDA.value.copy(HERO_REFL.shadowDir);
         { const t = u.uTime.value, a = HERO_REFL.shadow, b = HERO_REFL.ghost; u.uHw.value.set(waveH(a.x, a.z, t), waveH(b.x, b.z, t), waveH(cam.position.x, cam.position.z, t)); }
+        if (cam.position.z < WATER_Z + 40 && Math.hypot(cam.position.x - st.at.x, cam.position.z - st.at.z) > 30) { st.at.copy(cam.position); projectSkyline(cam.position.x, cam.position.z); }   // also under water: Snell's window shows the same skyline
         const ok = cam.position.z < WATER_Z + 40 && cam.position.y > WATER_Y + 0.3 && cam.position.y < 160 && !(UW as any).on;
-        if (!ok) { u.uUseRefl.value = 0; return; }
-        if (Math.hypot(cam.position.x - st.at.x, cam.position.z - st.at.z) > 30) { st.at.copy(cam.position); projectSkyline(cam.position.x, cam.position.z); }
-        u.uUseRefl.value = 1;
+        u.uUseRefl.value = ok ? 1 : 0;
     });
     return null;
 }
