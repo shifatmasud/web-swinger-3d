@@ -11,7 +11,7 @@ const data = new Uint8Array(SKYLINE_N * 4);
 export const SKYLINE_TEX = new THREE.DataTexture(data, SKYLINE_N, 1, THREE.RGBAFormat);
 SKYLINE_TEX.wrapS = THREE.RepeatWrapping; SKYLINE_TEX.magFilter = SKYLINE_TEX.minFilter = THREE.LinearFilter; SKYLINE_TEX.needsUpdate = true;
 const el = new Float32Array(SKYLINE_N), cr = new Float32Array(SKYLINE_N), cg = new Float32Array(SKYLINE_N), cb = new Float32Array(SKYLINE_N);
-const PAL = [[0.16, 0.62, 0.38], [0.85, 0.22, 0.55], [0.12, 0.55, 0.62], [0.9, 0.5, 0.16], [0.3, 0.32, 0.62], [0.62, 0.18, 0.62], [0.2, 0.42, 0.75]];
+const PAL = [[0.52, 0.55, 0.6], [0.42, 0.45, 0.52], [0.58, 0.54, 0.5], [0.36, 0.4, 0.47], [0.5, 0.53, 0.5], [0.55, 0.42, 0.38], [0.62, 0.62, 0.66]];   // facades seen in reflection sit darker than the sky they cut, so the skyline reads as a soft silhouette
 const TAU = Math.PI * 2;
 const bin = (a: number) => (((Math.round((a / TAU + 0.5) * SKYLINE_N) % SKYLINE_N) + SKYLINE_N) % SKYLINE_N);
 function put(a0: number, a1: number, e: number, r: number, g: number, b: number) {

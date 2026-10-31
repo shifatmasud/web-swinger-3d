@@ -132,9 +132,9 @@ export const OCEAN_FRAG = '#include <packing>\n#define WG_CHOP gChop\nbool gChop
         vec4 sk = texture2D(uSkyl, vec2(atan(rd.x, rd.z) * 0.15915494 + 0.5, 0.5));
         float elv = asin(clamp(rd.y, 0.0, 1.0)) + (n.x + n.z) * 0.03, top = sk.a * 0.35, soft = 0.03 + 0.02 * smoothstep(20.0, 400.0, wDist);
         float cov = smoothstep(top + soft, top - soft, elv) * step(0.004, sk.a) * smoothstep(0.0, 0.05, top - 0.0);
-        vec4 rs = vec4(sk.rgb * mix(0.22, 0.85, uDay), cov);
-        vec3 rsb = reflTint(rs.rgb, refl);
-        refl = mix(refl, rsb, rs.a * WATER_REFL_W); nGlow = sk.rgb * 0.35 * cov;   /* night: the lit skyline as a soft glow band */
+        vec4 rs = vec4(sk.rgb * mix(0.3, 1.0, uDay), cov);
+        vec3 rsb = mix(rs.rgb, reflTint(rs.rgb, refl), 0.45);   /* Shifat 1:21 'I don't see reflection': readable silhouettes - keeps their own colour, only half tinted to the water */
+        refl = mix(refl, rsb, rs.a * 0.85); nGlow = sk.rgb * 0.35 * cov;   /* night: the lit skyline as a soft glow band */
         #ifdef PROBE_DEBUG
         refl = mix(vec3(1.0, 0.0, 0.0), rs.rgb, rs.a);
         #endif
