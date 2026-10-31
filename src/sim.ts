@@ -665,6 +665,9 @@ function stepSimInner(s: Sim, dt: number, ev: Events, controls: Input = input, o
     const wasGround = s.ground, landVy = v[1];
     if (s.landHard > 0) s.landHard -= dt;
     s.wallT = Math.max(0, s.wallT - dt);
+    { /* Shifat Oct 31 11:02 AM: hold Space while swimming / diving = burst up out of the water straight into flight (keep holding to climb) */
+      const sh = s as any; if (s.swim && heldNow) sh.swimHold = (sh.swimHold || 0) + dt; else sh.swimHold = 0;
+      if (s.swim && sh.swimHold >= 0.3) { sh.swimHold = 0; s.swim = false; s.dive = false; sh.leapT = 0.8; s.ground = false; v[1] = Math.max(v[1], 0) + 26; gl.glideMode = true; gl.pressGl = true; gl.pressGround = false; gl.pressT = HOLD; ev.jump(); } }
     if (!s.web) { const ocean = p[2] < WATER_Z, lake = isLakeWater(p[0], p[2]), zone = ocean || lake, surface = waterSurfaceAt(p[0], p[2], s.t); (s as any).leapT = Math.max(0, ((s as any).leapT || 0) - dt); if (zone && p[1] < surface + 0.9 && !((s as any).leapT > 0)) s.swim = true; else if (!zone || p[1] > surface + 1.4) { s.swim = false; s.dive = false; } } else { s.swim = false; s.dive = false; }
     if (s.swim) { s.wall = null; s.ground = false; if (input.dodgeQ) { input.dodgeQ = false; s.dive = !s.dive; } }
     // Manual pitch is retained on walls; no forced leveling.
@@ -753,7 +756,7 @@ function stepSimInner(s: Sim, dt: number, ev: Events, controls: Input = input, o
     if (s.ground && !wasGround && landVy < -7) {
         const imp = -landVy; s.land = Math.min(1, imp / 30); const hard = imp > 26;
         s.landHard = hard ? 0.45 : 0;
-        if (hard) { v[0] *= 0.35; v[2] *= 0.35; s.hp = Math.max(1, s.hp - (imp - 26) * 2); }
+        if (hard) { v[0] *= 0.35; v[2] *= 0.35; }   // Shifat Oct 31 11:01 AM: no HP loss from landing / falling
         ev.land(hard);
     }
     const sp = len(v); if (sp > s.maxSpeed) s.maxSpeed = sp;
