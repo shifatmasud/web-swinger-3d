@@ -1,3 +1,4 @@
+import { SKYLINE_TEX } from './skylineRefl';
 import * as THREE from 'three';
 import { seabedAt } from '../sim';
 import { islandH } from '../seaWorld';
@@ -26,7 +27,7 @@ export const waterMat = new THREE.ShaderMaterial({
     transparent: true, side: THREE.DoubleSide,
     uniforms: { uTime: { value: 0 }, uUWF: UWF, uWL: { value: WATERLINE.v }, uWLy: { value: WATERLINE.y }, uDay: TOD.day, uSun: TOD.sunU, uSky: { value: TOD.sky }, uDeep: { value: new THREE.Color('#0a6f92') }, uShallow: { value: new THREE.Color('#2fa8c4') },
         // Shifat Oct 29 "ocean water can be upgraded like lake waters": same screen-space reflection + refraction the lake uses (OceanScreenSpace fills these)
-        uHw: { value: new THREE.Vector3() }, tScene: { value: null }, tDepth: { value: null }, uBed: { value: BED_TEX }, tProbe: { value: null }, uSceneTx: { value: new THREE.Vector2(0.004, 0.007) }, uFogK: { value: (QUALITY.coarse || LOWQ) ? 0.0042 : 0.0032 }, uBoat: { value: [0, 1, 2, 3, 4].map(() => new THREE.Vector4(0, 1e5, 0, 0)) }, uHeroA: { value: new THREE.Vector4(0, -999, 0, 0) }, uHeroB: { value: new THREE.Vector4(0, -999, 0, 0) }, uHeroDA: { value: new THREE.Vector4(0, 0, 0, 0) }, uUseRefl: { value: 0 }, uCaus: { value: CAUSTIC_TEX }, uNrm: { value: WATER_NRM }, uDet2: { value: (QUALITY.coarse || LOWQ) ? 0 : 1 }, uBedC: { value: new THREE.Vector3(BED_C.x, BED_C.z, BED_C.h) }, uUseScene: { value: 0 }, uSteps: { value: 7 }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uProj: { value: new THREE.Matrix4() } },
+        uHw: { value: new THREE.Vector3() }, tScene: { value: null }, tDepth: { value: null }, uBed: { value: BED_TEX }, tProbe: { value: null }, uSkyl: { value: SKYLINE_TEX }, uSceneTx: { value: new THREE.Vector2(0.004, 0.007) }, uFogK: { value: (QUALITY.coarse || LOWQ) ? 0.0042 : 0.0032 }, uBoat: { value: [0, 1, 2, 3, 4].map(() => new THREE.Vector4(0, 1e5, 0, 0)) }, uHeroA: { value: new THREE.Vector4(0, -999, 0, 0) }, uHeroB: { value: new THREE.Vector4(0, -999, 0, 0) }, uHeroDA: { value: new THREE.Vector4(0, 0, 0, 0) }, uUseRefl: { value: 0 }, uCaus: { value: CAUSTIC_TEX }, uNrm: { value: WATER_NRM }, uDet2: { value: (QUALITY.coarse || LOWQ) ? 0 : 1 }, uBedC: { value: new THREE.Vector3(BED_C.x, BED_C.z, BED_C.h) }, uUseScene: { value: 0 }, uSteps: { value: 7 }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uProj: { value: new THREE.Matrix4() } },
     vertexShader: OCEAN_VERT,
     fragmentShader: OCEAN_FRAG,
 });

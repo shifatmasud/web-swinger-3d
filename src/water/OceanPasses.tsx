@@ -10,6 +10,7 @@ import { worldBufferSize } from '../heroHD';
 import { UW } from '../world/env';
 import { OCEAN_SNAP } from './seabed';
 import { waterMat } from './oceanMaterial';
+import { projectSkyline } from './skylineRefl';
 
 // Per-frame drivers of the sea: the camera-following sheet, the mirror (reflection) pass and the screen-space scene copy for refraction.
 const DBG = !!(import.meta as any).env.VITE_DBG;   // test hooks only in instrumented builds
@@ -111,6 +112,23 @@ export function OceanScreenSpace({ sim, waterRef, perf }: { sim: Sim; waterRef: 
         }
         u.tScene.value = target.texture; u.tDepth.value = target.depthTexture; u.uUseScene.value = 1;
         if (DBG) (window as any).__ocean = { copies: st.copies, on: 1 };
+    });
+    return null;
+}
+
+/* Reflection illusion driver + hero uniforms (the hero refraction / see-through / clear-pocket code in the sea reads uHeroA/B every frame;
+   they were only fed by the unmounted probe pass). The skyline ring is re-projected when the camera moves ~30 m; nothing is rendered. */
+export function ReflectionIllusion({ sim }: { sim: Sim }) {
+    const { camera } = useThree();
+    const st = useMemo(() => ({ at: new THREE.Vector3(1e9, 0, 0) }), []);
+    useFrame(() => {
+        const u = waterMat.uniforms, cam = camera as THREE.PerspectiveCamera;
+        HERO_REFL.shadow.set(sim.pos[0], sim.pos[1], sim.pos[2], sim.mode === 'play' ? 1 : 0); u.uHeroA.value.copy(HERO_REFL.shadow); u.uHeroB.value.copy(HERO_REFL.ghost); HERO_REFL.shadowDir.set(Math.sin(sim.yaw), 0, Math.cos(sim.yaw), sim.swim && !sim.dive ? 1 : 0); u.uHeroDA.value.copy(HERO_REFL.shadowDir);
+        { const t = u.uTime.value, a = HERO_REFL.shadow, b = HERO_REFL.ghost; u.uHw.value.set(waveH(a.x, a.z, t), waveH(b.x, b.z, t), waveH(cam.position.x, cam.position.z, t)); }
+        const ok = cam.position.z < WATER_Z + 40 && cam.position.y > WATER_Y + 0.3 && cam.position.y < 160 && !(UW as any).on;
+        if (!ok) { u.uUseRefl.value = 0; return; }
+        if (Math.hypot(cam.position.x - st.at.x, cam.position.z - st.at.z) > 30) { st.at.copy(cam.position); projectSkyline(cam.position.x, cam.position.z); }
+        u.uUseRefl.value = 1;
     });
     return null;
 }

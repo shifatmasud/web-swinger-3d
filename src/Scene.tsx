@@ -34,7 +34,7 @@ import { CAUSTIC_TEX, CAUSTIC_GLSL, WATER_NRM, HERO_REFL } from './caustics';
 import { TOD, UWF, UW } from './world/env';
 import { seabedMat, wallMat, OCEAN_HALF, OCEAN_SNAP, oceanGeo, seabedGeo } from './water/seabed';
 import { waterMat } from './water/oceanMaterial';
-import { OceanFollow, IslandReflection, OceanScreenSpace } from './water/OceanPasses';
+import { OceanFollow, IslandReflection, OceanScreenSpace, ReflectionIllusion } from './water/OceanPasses';
 import { Boats, Gulls, Fish, MarineSnow, Whale } from './world/sealife';
 import { buildEnemy, PlasmaFx, EnemyDeathFx, EnemyShotsFx } from './world/enemies';
 import { DayNight } from './world/dayNight';
@@ -750,7 +750,7 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
         <group ref={splashRef} visible={false}>{[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => <mesh key={i} frustumCulled={false}><coneGeometry args={[0.13, 1, 5]} /><meshBasicMaterial color="#f4fdff" transparent opacity={0.9} depthWrite={false} /></mesh>)}</group>
         <group ref={ringRef as any} visible={false}>{[0, 1, 2].map((i) => <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} frustumCulled={false}><ringGeometry args={[1.0, 1.09, 48]} /><meshBasicMaterial color="#eefbff" transparent opacity={0.4} depthWrite={false} /></mesh>)}</group>
         <mesh position={[0, WATER_Y, WATER_Z - 400]} ref={waterRef} material={waterMat} frustumCulled={false} geometry={OCEAN_GEO} />
-        <OceanFollow waterRef={waterRef} />
+        <OceanFollow waterRef={waterRef} /><ReflectionIllusion sim={sim} />
         <Boats sim={sim} /><Gulls sim={sim} /><Fish sim={sim} /><Whale sim={sim} /><MarineSnow />
         <SouthSea sim={sim} kit={SOUTH_SEA_KIT} />
         {/* Shifat 9:33 AM 'No reflection. Lock it. Remove any second render.': OceanScreenSpace (scene copy) and the reflection probe are not mounted */}
