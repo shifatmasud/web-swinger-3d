@@ -46,7 +46,8 @@ import { Underwater } from './world/underwater';
 import { waveAtWater, waterRenderY } from './water/waveHeight';
 import { Forest, Meadow, parkBushGeo, parkGrassOnCompile, tuftGeo } from './world/forest';
 import { treeGeo, coniferGeo, palmFrondTex, palmTrunkTex, palmGeo, cherryLeafShader, palmFrondShader, TREE_TYPES, TREE_PATTERN, treeWindTime, trunkWindShader, leafWindShader } from './world/trees';
-import { FxaaPass, HeroHDPass, OutlinePass, OUTLINE_STATE, WATERLINE } from './render/passes';
+import { FxaaPass, HeroHDPass, OutlinePass, OUTLINE_STATE } from './render/passes'
+import { WATERLINE } from './world/env';
 export { SHARPEN, FXAA_STATE, OUTLINE_STATE } from './render/passes';
 import { City, TenementBlock, Sky } from './world/cityScenery';
 import { waveSumJS } from './water/waves';

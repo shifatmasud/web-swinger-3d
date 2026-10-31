@@ -1,3 +1,4 @@
+import { WATERLINE } from '../world/env';
 import { HD, createHeroComposite, worldBufferSize, worldTarget } from '../heroHD';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -38,8 +39,6 @@ export function FxaaPass({ enabled }: { enabled: boolean }) {
 }
 
 export const OUTLINE_STATE = { on: true };
-/* Half-in/half-out lens (Shifat Oct 31): Scene sets the screen line (ndc: x*a + y*b + c < 0 is under water) and w=1 while the lens straddles the surface. */
-export const WATERLINE = { v: new THREE.Vector4(0, 0, 1, 0), col: new THREE.Color() };
 if (!OUTLINE_STATE.on) HD.enabled = false;   // the hero HD pass reuses the outline pass's world depth
 
 // Heroes at native resolution over the world (see heroHD.ts); runs after outline (1) and bloom (2).

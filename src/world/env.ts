@@ -7,3 +7,7 @@ TOD.sunU = { value: TOD.sun };   // shared sun-direction uniform (set here so ev
 // underwater far colour (seabed haze = background, so the seabed plane has no visible far edge) and the underwater flag
 export const UWF = { value: new THREE.Color('#176e8c') };
 export const UW = { on: false };
+
+/* Half-in/half-out lens (Shifat Oct 31): Scene sets the screen line (ndc: x*a + y*b + c < 0 is under water) and w=1 while the lens straddles the surface.
+   The sea surface discards below it (true underworld seen directly) and the post pass fogs that half like diving. */
+export const WATERLINE = { v: new THREE.Vector4(0, 0, 1, 0), col: new THREE.Color() };

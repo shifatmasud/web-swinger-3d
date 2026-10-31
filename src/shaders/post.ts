@@ -51,10 +51,10 @@ void main(){
     float un = smoothstep(0.004, -0.004, wd);
     if (un > 0.0) {
       float below = clamp(-wd, 0.0, 2.0);
-      vec3 cu = c * vec3(0.42, 0.78, 0.88) + uUwC * 0.22;
-      vec3 fogc = uUwC * vec3(0.85, 1.38, 1.18) * mix(1.25, 0.85, smoothstep(0.0, 1.6, below));   // brighter just under the surface, darker looking down (same falloff as the dive wash)
-      float fg = max(1.0 - smoothstep(0.05, 1.0, below) * 0.7, smoothstep(25.0, 120.0, z));
-      cu = mix(cu, fogc, fg);
+      // true underworld (the sea surface discards below the line): same linear fog as diving (55 -> 190 m) plus the dive light wash
+      vec3 fogc = uUwC * vec3(0.85, 1.38, 1.18) * mix(1.2, 0.85, smoothstep(0.0, 1.6, below));
+      vec3 cu = mix(c, c * vec3(0.55, 0.88, 0.95) + fogc * 0.18, 0.75);
+      cu = mix(cu, fogc, smoothstep(12.0, 150.0, z));
       c = mix(c, cu, un);
     }
     float mn = 1.0 - smoothstep(0.0, 0.018, abs(wd));
