@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { TOD } from './world/env';
 import { SELECTIVE_BLOOM_LAYER } from './renderLayers';
 import { worldBufferSize, worldTarget } from './heroHD';
 
@@ -49,9 +48,7 @@ export function SelectiveBloomPass() {
     }, [state]);
 
     useFrame(() => {
-        /* Shifat 9:43 AM 'kill rerenders': the bloom pass is a second scene render (+ a full-frame copy and composite). By day the glow is barely visible,
-           so it only runs from dusk to dawn, where the neon look depends on it (Neon Harbor night look locked). */
-        if (TOD.day.value > 0.6) return;
+        // Shifat 11:07 AM: glow pass always on, day and night ('always glow mode')
         const oldMask = camera.layers.mask;
         const oldBackground = scene.background;
         const oldTarget = gl.getRenderTarget();
