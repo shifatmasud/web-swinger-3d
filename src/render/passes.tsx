@@ -106,7 +106,7 @@ export function OutlinePass() {
         if (st.ft.image.width !== st.sz.x || st.ft.image.height !== st.sz.y) { st.ft.dispose(); st.ft.image = { width: st.sz.x, height: st.sz.y } as any; st.fm.uniforms.uRes.value.copy(st.sz); }
         const out = worldTarget(gl); HD.depth = st.rt.depthTexture;   // hero HD pass: the world's final frame goes to the world RT, same size as before
         gl.setRenderTarget(st.rt);
-        const sp = st.sea; gl.getSize(sp.css); const high = camera.position.y > 35 && !(UW as any).on, sw = high ? Math.round(st.sz.x * 0.5) : Math.round(sp.css.x), sh = high ? Math.round(st.sz.y * 0.5) : Math.round(sp.css.y);   /* Shifat 2:03 PM 'you can approximate': flying high, the sea's shading runs at half res (ripples are sub-pixel from there), composited at full res with a per-pixel depth test */
+        const sp = st.sea; gl.getSize(sp.css); const cy = camera.position.y, hk = (UW as any).on ? 1 : cy > 70 ? 0.35 : cy > 35 ? 0.5 : cy > 12 ? 0.75 : 1, high = hk < 1, sw = high ? Math.round(st.sz.x * hk) : Math.round(sp.css.x), sh = high ? Math.round(st.sz.y * hk) : Math.round(sp.css.y);   /* resolution steps down with height (quantised, so the target is not resized every frame) */   /* Shifat 2:03 PM 'you can approximate': flying high, the sea's shading runs at half res (ripples are sub-pixel from there), composited at full res with a per-pixel depth test */
         if (sp.n++ % 30 === 0) sortLayers(scene, sp);
         const cam0 = camera.layers.mask;
         if (sw < st.sz.x * 0.95 && !(DBG && (window as any).__seaFull)) {
