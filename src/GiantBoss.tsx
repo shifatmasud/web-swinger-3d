@@ -248,6 +248,7 @@ function buildBossRig(): BossRig {
     return { root, body, bones, byName, geometry, skin, outline, muscleGeometry, muscleMaterial, muscleOutline, armorGeometry, armorSphereGeometry, armorBandGeometry, armorMaterial, armorTrimMaterial, eyeMaterial, armorMeshes, thrusterGroup, thrusterOuterGeometry, thrusterCoreGeometry, thrusterOuterMaterial, thrusterCoreMaterial, thrusterOuter, thrusterCore };
 }
 
+const _bossS = new THREE.Sphere(new THREE.Vector3(), 22), _bossM = new THREE.Matrix4(), _bossF = new THREE.Frustum();
 export function GiantBoss({ sim, mini = false }: { sim: Sim; mini?: boolean }) {
     const rig = useMemo(buildBossRig, []);
     const root = rig.root;
@@ -260,10 +261,14 @@ export function GiantBoss({ sim, mini = false }: { sim: Sim; mini?: boolean }) {
         rig.thrusterOuterGeometry.dispose(); rig.thrusterCoreGeometry.dispose(); rig.thrusterOuterMaterial.dispose(); rig.thrusterCoreMaterial.dispose();
     }, [rig]);
 
-    useFrame((_, rawDt) => {
+    useFrame((_st, rawDt) => {
         const dt = Math.max(0.001, Math.min(0.05, rawDt));
         const boss = sim.enemies.find((e) => e.boss && !!(e as any).mini === mini);   // South Sea 4: a second rig draws Neon Harbor's mini-boss
         if (!boss || sim.mode !== 'play') { root.visible = false; return; }
+        /* Shifat 9:43 AM 'freeze what's not visible': each boss rig is ~40 separate meshes (armour, muscles, eyes, thrusters, outlines) = ~40 draw calls.
+           Off-screen or past 260 m (a few pixels on a phone) the whole rig is hidden and its pose update skipped. */
+        { const cam = _st.camera; _bossS.center.set(boss.x, boss.y + 8, boss.z); _bossM.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); _bossF.setFromProjectionMatrix(_bossM);
+          if (cam.position.distanceTo(_bossS.center) > 260 || !_bossF.intersectsSphere(_bossS)) { root.visible = false; return; } }
         if (DBG && !mini) (window as any).__giantBossRoot = root;
 
         const motion = state.current;
