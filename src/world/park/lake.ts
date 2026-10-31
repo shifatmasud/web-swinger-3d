@@ -125,10 +125,20 @@ void main(){
     if(uSteps>12.0){float a0=tp,a1=t;for(int j=0;j<4;j++){float m=0.5*(a0+a1);vec3 M=vView+Rv*m;vec4 cm=uProj*vec4(M,1.0);vec2 um=cm.xy/cm.w*0.5+0.5;if(M.z<sceneZ(um)){a1=m;uv=um;}else a0=m;}}
     float e=smoothstep(0.0,0.1,uv.x)*(1.0-smoothstep(0.9,1.0,uv.x))*(1.0-smoothstep(0.82,1.0,uv.y))*smoothstep(0.0,0.08,uv.y);vec2 bo=vec2(0.0035,0.0045)*(1.0+0.6*clamp(t/40.0,0.0,1.0));vec3 rs=(texture2D(tScene,uv).rgb*2.0+texture2D(tScene,uv+vec2(bo.x,0.0)).rgb+texture2D(tScene,uv-vec2(bo.x,0.0)).rgb+texture2D(tScene,uv+vec2(0.0,bo.y)).rgb+texture2D(tScene,uv-vec2(0.0,bo.y)).rgb)/6.0;/* soft 5-tap: the low-res scene copy no longer reads as pixel blocks, and blurs more for far objects like real ripple-roughened water */refl=mix(refl,reflTint(rs,refl),e*WATER_REFL_W);reflDist=t;break;}/* same soft blue subtle reflections as the sea */
    tp=t;}}
- if(!below&&reflDist>9e4){/* #5 pond skyline illusion: trees on the bank + towers, one fetch (src/water/skylineRefl.ts POND_SKYL_TEX), calm-elevation streaks like the sea */
-  vec3 rr=reflect(-V,vec3(0.0,1.0,0.0));vec4 sk=texture2D(uSkyl,vec2(atan(rr.x,rr.z)*0.15915494+0.5,0.5));sk.rgb=pow(sk.rgb,vec3(2.2));/* ring colours are sRGB; this shader is linear before colorspace_fragment */float top=sk.a*0.35;
-  float kk=asin(clamp(V.y,0.0,1.0))/max(top,1e-3)+(N.x+N.z)*1.2;float cov=(1.0-smoothstep(1.0,2.0,kk))*mix(1.0,0.65,smoothstep(0.4,2.0,kk))*step(0.004,sk.a);
-  refl=mix(refl,mix(sk.rgb,reflTint(sk.rgb,refl),0.35)*mix(0.3,0.9,uDay),cov*0.9);F=max(F,cov*0.45);}
+ if(!below&&reflDist>9e4){/* #5 pond reflection illusion v2 (Shifat 3:20 PM 'looks a bit wrong'): the bank trees are an analytic ring (cylinder) around the
+   pond, hit by the per-pixel reflected ray, so the mirrored tree line hugs the shore with true parallax like a real pond; above the trees the far
+   towers come from the projected ring (POND_SKYL_TEX). No renders, one fetch. */
+  vec3 rr=normalize(mix(reflect(-V,vec3(0.0,1.0,0.0)),R,0.35));vec2 d2=rr.xz;float dl=max(length(d2),1e-3);d2/=dl;
+  vec2 o2=vWorld.xz-uPondCenter;float Rb=uPondR*uShore+4.5;float b2=dot(o2,d2),c2=dot(o2,o2)-Rb*Rb;float th=-b2+sqrt(max(b2*b2-c2,0.0));
+  vec2 hp=o2+d2*th;float az=atan(hp.x,hp.y);float hy=th*rr.y/dl;
+  float tn=0.5+0.25*sin(az*7.0+1.3)+0.15*sin(az*17.0+0.4)+0.1*sin(az*41.0);float tH=4.0+5.0*tn;
+  float pink=smoothstep(0.35,0.75,0.5+0.5*sin(az*5.0+0.7)+0.2*sin(az*23.0));
+  vec3 treeC=mix(vec3(0.035,0.075,0.03),vec3(0.24,0.13,0.17),pink)*mix(0.25,1.0,uDay);vec3 bankC=vec3(0.06,0.08,0.035)*mix(0.25,1.0,uDay);
+  float tc=1.0-smoothstep(tH-1.2,tH+0.6,hy+(N.x+N.z)*3.0);
+  vec4 sk=texture2D(uSkyl,vec2(atan(rr.x,rr.z)*0.15915494+0.5,0.5));sk.rgb=pow(sk.rgb,vec3(2.2));
+  float top=sk.a*0.35;float tw=step(0.004,sk.a)*(1.0-smoothstep(top*0.9,top*1.1+0.02,asin(clamp(rr.y,0.0,1.0))));
+  vec3 rc=mix(refl,reflTint(sk.rgb*mix(0.3,0.9,uDay),refl),tw*0.7);rc=mix(rc,mix(bankC,treeC,smoothstep(0.4,1.4,hy)),tc*0.9);
+  refl=rc;F=max(F,tc*0.55);}
  if(!below&&cameraPosition.y>vWorld.y){/* Shifat 6:06 PM: both heroes reflect in the pond (flying one too), same soft capsule style as the sea/pools/river; only the part above the surface */
   float wy=vWorld.y;bool nA=uHeroA.w>0.5&&length(uHeroA.xz-vWorld.xz)<40.0&&uHeroA.y+1.55>wy,nB=uHeroB.w>0.5&&length(uHeroB.xz-vWorld.xz)<40.0&&uHeroB.y+1.5>wy;
   float qA=nA?capHitP(vWorld,R,vec3(uHeroA.x,max(uHeroA.y+0.25,wy),uHeroA.z),uHeroA.xyz+vec3(0.0,1.55,0.0),0.34):-1.0,oA=nA&&qA<0.0?capHitP(vWorld,R,vec3(uHeroA.x,max(uHeroA.y+0.15,wy),uHeroA.z),uHeroA.xyz+vec3(0.0,1.7,0.0),0.55):-1.0;
