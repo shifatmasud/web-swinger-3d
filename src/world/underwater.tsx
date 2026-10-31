@@ -67,7 +67,7 @@ export function Underwater({ sim }: { sim: Sim }) {
     useFrame((st) => {
         const t = sim.t, hx = sim.pos[0], hy = sim.pos[1], hz = sim.pos[2], inBay = hz < WATER_Z + 6, inLake = isLakeWater(hx, hz), inWater = inBay || inLake, surfaceY = inLake ? waterSurfaceAt(hx, hz, t) : WATER_Y, under = inWater && st.camera.position.y < surfaceY + 1.5 && sim.mode === 'play';
         kelpMat.uniforms.uTime.value = t; rayMat.uniforms.uTime.value = t;
-        kelp.current.visible = inBay; const cu = under && st.camera.position.y < surfaceY - 0.05 && st.camera.position.y < waterRenderY(st.camera.position.x, st.camera.position.z, t) - 0.05; bub.current.visible = cu; rays.current.visible = cu;   // env-iter3: also below the real (wave-displaced) sea surface, not just the flat sea level   // shafts and bubbles only once the camera is really below either water surface
+        kelp.current.visible = inBay && under;   /* Shifat Oct 31 2:29 PM night screenshot: seen from above through the clear water the blades read as rain streaks over the whole sea - only drawn when the lens is at/below the surface */ const cu = under && st.camera.position.y < surfaceY - 0.05 && st.camera.position.y < waterRenderY(st.camera.position.x, st.camera.position.z, t) - 0.05; bub.current.visible = cu; rays.current.visible = cu;   // env-iter3: also below the real (wave-displaced) sea surface, not just the flat sea level   // shafts and bubbles only once the camera is really below either water surface
         if (!inWater) return;
         if (under) {
             const pa = bub.current.geometry.attributes.position as THREE.BufferAttribute, ca = bub.current.geometry.attributes.color as THREE.BufferAttribute, za = bub.current.geometry.attributes.aSize as THREE.BufferAttribute;
