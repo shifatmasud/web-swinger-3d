@@ -264,11 +264,12 @@ export function GiantBoss({ sim, mini = false }: { sim: Sim; mini?: boolean }) {
     useFrame((_st, rawDt) => {
         const dt = Math.max(0.001, Math.min(0.1, rawDt));
         const boss = sim.enemies.find((e) => e.boss && !!(e as any).mini === mini);   // South Sea 4: a second rig draws Neon Harbor's mini-boss
-        if (!boss || sim.mode !== 'play') { root.visible = false; return; }
+        if (!boss || sim.mode !== 'play') { root.visible = false; root.matrixWorldAutoUpdate = false; return; }
         /* Shifat 9:43 AM 'freeze what's not visible': each boss rig is ~40 separate meshes (armour, muscles, eyes, thrusters, outlines) = ~40 draw calls.
            Off-screen or past 260 m (a few pixels on a phone) the whole rig is hidden and its pose update skipped. */
         { const cam = _st.camera; _bossS.center.set(boss.x, boss.y + 8, boss.z); _bossM.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); _bossF.setFromProjectionMatrix(_bossM);
-          if (cam.position.distanceTo(_bossS.center) > 260 || !_bossF.intersectsSphere(_bossS)) { root.visible = false; return; } }
+          if (cam.position.distanceTo(_bossS.center) > 260 || !_bossF.intersectsSphere(_bossS)) { root.visible = false; root.matrixWorldAutoUpdate = false; return; } }
+        root.matrixWorldAutoUpdate = true;   // hidden rigs (~120 nodes each) also skip the per-frame scene-graph matrix walk
         if (DBG && !mini) (window as any).__giantBossRoot = root;
 
         const motion = state.current;
