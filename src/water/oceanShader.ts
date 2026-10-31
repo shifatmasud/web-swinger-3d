@@ -38,7 +38,7 @@ export const OCEAN_FRAG = '#include <packing>\n#define WG_CHOP gChop\nbool gChop
     vec3 sceneCol(vec2 uv){   /* Shifat 3:30 PM 'same on all devices': one 2-tap soft read everywhere (phone was 1 tap, desktop 4) */
       vec2 o = uSceneTx * vec2(0.7, 0.45); vec3 c = texture2D(tScene, uv + o).rgb + texture2D(tScene, uv - o).rgb; return linearToOutputTexel(vec4(c * 0.5, 1.0)).rgb; }   /* rotated-grid 4-tap: the low-res scene copy no longer shows fish/whales/boats under the water as pixel blocks */
     uniform vec4 uWL; uniform float uWLy[9];
-    float wlY(float x){ float f = clamp(x * 4.0 + 4.0, 0.0, 7.999); int i = int(f); float t = f - float(i); t = t * t * (3.0 - 2.0 * t); return mix(uWLy[i], uWLy[i + 1], t) + 0.035 * sin(x * 5.3 + uWL.x * 1.7) + 0.018 * sin(x * 13.7 - uWL.x * 2.9) + 0.008 * sin(x * 31.0 + uWL.x * 4.1); }   /* chop + ripples the CPU swell does not carry, same in sea + post so the cut matches */
+    float wlY(float x){ float f = clamp(x * 4.0 + 4.0, 0.0, 7.999); int i = int(f); float t = f - float(i); t = t * t * (3.0 - 2.0 * t); return mix(uWLy[i], uWLy[i + 1], t); }
     void main(){
       if (uWL.w > 0.5) { vec2 sn = vScreen.xy / vScreen.w; bool airHalf = sn.y > wlY(sn.x);   /* split lens: the upper half of the lens is in air (sees only the top of the sea), the lower half is under water (sees only the wavy underside) */
         if (airHalf != gl_FrontFacing) discard; }
@@ -154,6 +154,11 @@ export const OCEAN_FRAG = '#include <packing>\n#define WG_CHOP gChop\nbool gChop
         float sA2 = uHeroA.w > 0.5 && sA > 0.0 ? capH(vW, -v, uHeroA.xyz + vec3(0.0, 0.05, 0.0), uHeroA.xyz + vec3(0.0, 1.5, 0.0), 0.32, uHeroDA) : -1.0;
         float sB2 = uHeroB.w > 0.5 && sB > 0.0 ? capHit(vW, -v, uHeroB.xyz + vec3(0.0, 0.05, 0.0), uHeroB.xyz + vec3(0.0, 1.45, 0.0), 0.29) : -1.0;
         if (max(sA2, sB2) > 0.0) heroSee *= 2.0;   /* two nested capsules: soft edge, no hard window */
+        /* Shifat Oct 31 12:44 'water mist gets transparent around heroes while swimming': a soft clear pocket of water around a hero at the
+           surface (or just under it), so legs and torso read through the water; fades out over ~1-2.6 m so there is no window edge. */
+        float pkA = uHeroA.w > 0.5 && uHeroA.y < hwA + 0.4 && uHeroA.y > hwA - 3.5 ? 1.0 - smoothstep(0.9, 2.6, length(vW.xz - uHeroA.xz)) : 0.0;
+        float pkB = uHeroB.w > 0.5 && uHeroB.y < hwB + 0.4 && uHeroB.y > hwB - 3.5 ? 1.0 - smoothstep(0.8, 2.3, length(vW.xz - uHeroB.xz)) : 0.0;
+        heroSee = max(heroSee, max(pkA, pkB) * 0.8);
         if (rt > 0.0 && rt < 14.0) { vec3 Th = exp(-vec3(0.45, 0.07, 0.02) * rt * 1.6); body = mix(body, rc * mix(0.35, 1.0, uDay) * (0.55 + 0.45 * uDay) * Th + body * (1.0 - Th) * 0.6, 0.9); }
       }
       float heroK = 0.0; vec3 heroC = vec3(0.0);
