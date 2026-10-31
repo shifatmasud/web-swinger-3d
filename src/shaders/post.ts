@@ -28,11 +28,22 @@ export const FXAA_SHARP_FS = FXAA_FS.replace('uniform vec2 uRes;', 'uniform vec2
   }
   gl_FragColor = vec4(col, 1.0);
 }`);
-export const OUT_FS = `uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uNear; uniform float uFar; uniform float uTh; uniform float uOn; uniform vec4 uWL; uniform float uWLy[9]; uniform vec3 uUwC; varying vec2 vUv;
+export const OUT_FS = `uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uNear; uniform float uFar; uniform float uTh; uniform float uOn; uniform vec4 uWL; uniform float uWLy[9]; uniform vec3 uUwC; uniform float uDrop; varying vec2 vUv;
 float wlY(float x){ float f = clamp(x * 4.0 + 4.0, 0.0, 7.999); int i = int(f); float t = f - float(i); t = t * t * (3.0 - 2.0 * t); return mix(uWLy[i], uWLy[i + 1], t) + 0.035 * sin(x * 5.3 + uWL.x * 1.7) + 0.018 * sin(x * 13.7 - uWL.x * 2.9) + 0.008 * sin(x * 31.0 + uWL.x * 4.1); }   /* chop + ripples the CPU swell does not carry, same in sea + post so the cut matches */
 float vz(vec2 uv){ float d = texture2D(tDepth, uv).x; float zn = d * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - zn * (uFar - uNear)); }
+float dHash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.55); }
 void main(){
-  vec4 c4 = texture2D(tColor, vUv); vec3 c = c4.rgb;
+  vec2 uv = vUv; float dropHi = 0.0;
+  if (uDrop > 0.01) {   /* lens droplets for a moment after crossing the surface (Black Flag style): ~2 drops per cell, sliding down, each a tiny lens */
+    vec2 asp = vec2(uRes.x / uRes.y, 1.0) * 4.0;
+    for (int k = 0; k < 2; k++) {
+      vec2 g = vUv * asp + vec2(float(k) * 0.37, float(k) * 0.61); vec2 id = floor(g); float h = dHash(id + float(k) * 7.1);
+      if (h > 0.62) { float h2 = dHash(id + 3.3), h3 = dHash(id + 9.7), h4 = dHash(id + 17.1);
+        vec2 f = fract(g) - vec2(0.25 + 0.5 * h2, 0.3 + 0.45 * h3 + (1.0 - uDrop) * (0.15 + 0.5 * h4)); float r = (0.05 + 0.16 * h4 * h4) * (0.6 + 0.4 * uDrop);
+        float d = length(f * vec2(1.0, 0.8)); if (d < r) { float q = d / r; uv -= f / asp * (1.0 - q * q) * 2.2; dropHi = max(dropHi, (1.0 - smoothstep(0.6, 1.0, q)) * 0.25 + smoothstep(0.35, 0.0, length(f / r + vec2(0.35, -0.35))) * 0.8); } }
+    }
+  }
+  vec4 c4 = texture2D(tColor, uv); vec3 c = c4.rgb; c += dropHi * 0.35 * uDrop;
   // alpha classes: >= 0.75 ordinary surfaces; 0.5 band = glowing lights (never inked); env-iter3: 0.25 = grass blades/flowers, 0.375 = park ground
   float lightMask = 1.0 - step(0.45, c4.a) * (1.0 - step(0.75, c4.a)) - (1.0 - step(0.75, c4.a)) * step(c4.a, 0.18);
   vec2 px = uTh / uRes;
