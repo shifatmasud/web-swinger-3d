@@ -58,6 +58,16 @@ const WATER_ASSET: Asset = {
     id: 'water-blob-f266b8', title: 'Water Blob', url: urlFor('water-blob-f266b8'),
 };
 
+// Shifat 9:43 AM '25+ fps on all devices': the city/tree/bridge kit came in as PBR (MeshStandardMaterial: GGX specular + env per pixel).
+// The assets are matte (rough, non-metal), so Lambert diffuse reads the same at a fraction of the per-pixel cost.
+function toLambert(m: THREE.Material): THREE.Material {
+    const s = m as THREE.MeshStandardMaterial;
+    if (!s.isMeshStandardMaterial) return m.clone();
+    const l = new THREE.MeshLambertMaterial({ color: s.color, map: s.map, emissive: s.emissive, emissiveMap: s.emissiveMap, emissiveIntensity: s.emissiveIntensity,
+        vertexColors: s.vertexColors, transparent: s.transparent, opacity: s.opacity, alphaTest: s.alphaTest, side: s.side, alphaMap: s.alphaMap, aoMap: s.aoMap, aoMapIntensity: s.aoMapIntensity });
+    l.name = s.name; return l;
+}
+
 function prepareModel(id: string, gltf: GLTF): Model {
     const root = gltf.scene;
     root.updateMatrixWorld(true);
@@ -75,8 +85,8 @@ function prepareModel(id: string, gltf: GLTF): Model {
         geometry.computeBoundingBox();
         geometry.computeBoundingSphere();
         const material = Array.isArray(mesh.material)
-            ? mesh.material.map((m) => m.clone())
-            : mesh.material.clone();
+            ? mesh.material.map((m) => toLambert(m))
+            : toLambert(mesh.material);
         parts.push({ geometry, material });
     });
     return { id, dimensions, parts };
