@@ -10,7 +10,7 @@ export const HERO_LAYER = 2;
 const OFF = typeof location !== 'undefined' && /[?&]hd=0\b/.test(location.search);
 
 export const HD = {
-    enabled: !OFF,
+    enabled: false && !OFF,   /* Shifat 9:47 AM 'Can't we not draw twice?': the HD pass drew every hero twice plus a native-res full-screen copy each frame - OFF, heroes render once with the world at dpr 1 */
     on: false,                 // active this frame (canvas ratio > world ratio or FXAA-free heroes wanted)
     worldRatio: 1, canvasRatio: 1,
     rt: null as THREE.WebGLRenderTarget | null,
