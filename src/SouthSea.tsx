@@ -13,6 +13,8 @@ import { CAUSTIC_TEX, CAUSTIC_GLSL, HERO_REFL } from './caustics';
 import { RIVER_MAT, fallsMat, FALLS_MATS, FOAM_MAT, poolWaterMat } from './water/islandWater';
 import { type SouthSeaKit, PHONE, HAZE_K, SKY_BLUE, hazeShader, colorize, merged, rnd, setSeed } from './world/southSea/common';
 import { NeonHarbor, LightShafts, CITY_LOD } from './world/southSea/neonHarbor';
+import { coniferGeo, cherryLeafShader } from './world/trees';
+import { PINE_URL } from './texdata';
 import { Bridge } from './world/southSea/bridge';
 import { BEACH_T, GRASS_T, GRASS_U, MIST_MAT, SPRAY_MAT, beachShader, dockGeo, fallsSheet, islandTerrainGeo, lighthouseGeo, riverGeo, shacksGeo, sprayGeo, type Inst } from './world/southSea/islandGeo';
 export { hazeShader, CITY_LOD };
@@ -32,7 +34,7 @@ function Island({ sim, kit }: { sim: Sim; kit: SouthSeaKit }) {
     // vegetation (2b: more variety): tall curved palms, short bushy palms, jungle broadleaves, tall thin canopy trees, ferns, bushes
     const veg = useMemo(() => {
         setSeed(9001);
-        const out: Record<string, Inst[]> = { palmA: [], palmB: [], broad: [], tall: [], fern: [], bush: [], grass: [], rock: [] };
+        const out: Record<string, Inst[]> = { palmA: [], palmB: [], broad: [], tall: [], fern: [], bush: [], grass: [], rock: [], pine: [], spruce: [], cherry: [] };
         const all: Inst[] = [];
         const clear = (x: number, z: number, m = 1) => Math.hypot(x - PEAK.x, z - PEAK.z) > 7 * m && !poolAt(x, z) && Math.hypot(x - LAGOON.cx, z - LAGOON.cz) > LAGOON.r * 1.05 && Math.hypot(x - POOL.cx, z - POOL.cz) > POOL.r * 1.15 && Math.abs(x - DOCK.x) + Math.max(0, z - DOCK.z0) > 5 && !SHACKS.some((s) => Math.hypot(x - s.x, z - s.z) < 5 * m) && distToFalls(x, z) > 5 * m && (riverNear(x, z)?.d ?? 99) > (riverNear(x, z)?.hw ?? 0) * 1.5;
         const slopeAt = (x: number, z: number) => { const y = islandH(x, z) ?? 0; return Math.hypot((islandH(x + 1, z) ?? y) - y, (islandH(x, z + 1) ?? y) - y); };
@@ -49,10 +51,14 @@ function Island({ sim, kit }: { sim: Sim; kit: SouthSeaKit }) {
         const F = PHONE ? 0.65 : 1;
         put('palmA', Math.round(28 * F), 900, ring(0.62, 0.84), (y) => y > 1.2 && y < 4.5, 5.5, [1.0, 1.4], undefined, true);   // coconut palms lean out toward the sea
         put('palmB', Math.round(18 * F), 900, ring(0.55, 0.8), (y) => y > 1.4 && y < 7, 4.5, [0.95, 1.2], [0.5, 0.65], true);
-        put('broad', Math.round(56 * F), 3000, disc(0.66), (y, x, z) => y > 3.2 && slopeAt(x, z) < 1.4, 7, [0.9, 1.4]);
-        put('tall', Math.round(30 * F), 3000, disc(0.66), (y, x, z) => y > 4 && slopeAt(x, z) < 1.3, 6, [0.85, 1.25]);   // 2c: park broadleaf (second seed) instead of the custom umbrella tree
+        put('broad', Math.round(40 * F), 3000, disc(0.66), (y, x, z) => y > 3.2 && slopeAt(x, z) < 1.4, 7, [0.9, 1.4]);
+        put('tall', Math.round(22 * F), 3000, disc(0.66), (y, x, z) => y > 4 && slopeAt(x, z) < 1.3, 6, [0.85, 1.25]);   // 2c: park broadleaf (second seed) instead of the custom umbrella tree
         put('bush', Math.round(70 * F), 3000, disc(0.74), (y) => y > 2.4, 2.2, [1.4, 2.4]);   // the park's shrub
         put('rock', 14, 900, ring(0.88, 1.0), (y) => y > -2.0 && y < 1.2, 8, [0.8, 1.9], [0.55, 0.85]);   // a few weathered boulders at the waterline
+        // Shifat Oct 31 11:29 AM 'island must have tree variations, add pine & others': pines + spruces on the high ground, cherry blossoms on the mid slopes
+        put('pine', Math.round(16 * F), 3000, disc(0.6), (y, x, z) => y > 4.5 && slopeAt(x, z) < 1.8, 6, [0.85, 1.25]);
+        put('spruce', Math.round(10 * F), 3000, disc(0.6), (y, x, z) => y > 6 && slopeAt(x, z) < 1.8, 6, [0.8, 1.15]);
+        put('cherry', Math.round(16 * F), 3000, disc(0.62), (y, x, z) => y > 3.2 && slopeAt(x, z) < 1.4, 7, [0.8, 1.1]);
         // long grass: a 1 m mask of where it may grow (height or NaN), so the hero-centred patch re-places with plain lookups
         const half = 110, n = 220, mask = new Float32Array(n * n).fill(NaN);
         for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const x = ISLAND.cx - half + i + 0.5, z = ISLAND.cz - half + j + 0.5, y = islandH(x, z); if (y === null || y < 2.7) continue; if (slopeAt(x, z) > 1.3 || !clear(x, z, 0.5)) continue; mask[j * n + i] = y; }
@@ -60,11 +66,12 @@ function Island({ sim, kit }: { sim: Sim; kit: SouthSeaKit }) {
         return out;
     }, []);
     const geos = useMemo(() => {
+        const pine = PHONE ? (() => { const h = coniferGeo('pine', 31, 3, 2, 1.6); return h; })() : coniferGeo('pine', 31, 5, 3, 1.12), spruce = PHONE ? coniferGeo('spruce', 17, 3, 2, 1.6) : coniferGeo('spruce', 17, 6, 3, 1.12), cherry = kit.treeGeo('cherry', 7, Math.round(560 * QK.foliage), 1.45);
         const pA = kit.palmGeo(97), pB = kit.palmGeo(41), t = kit.treeGeo('broad', 23, Math.round(260 * (PHONE ? 0.8 : 1)), 1.45), u = kit.treeGeo('broad', 11, Math.round(460 * QK.foliage), 1.45), b = { leaves: kit.parkBushGeo() };   // 2c: the city park's own broadleaf + shrub
         const rock = (() => { const g = new THREE.DodecahedronGeometry(1, 1).toNonIndexed(); const pa = g.attributes.position as THREE.BufferAttribute; let r = 31; const rn = () => (r = (r * 16807) % 2147483647) / 2147483647; const seen = new Map<string, number>(); for (let i = 0; i < pa.count; i++) { const k = pa.getX(i).toFixed(3) + pa.getY(i).toFixed(3) + pa.getZ(i).toFixed(3); if (!seen.has(k)) seen.set(k, 0.75 + rn() * 0.5); const f = seen.get(k)!; pa.setXYZ(i, pa.getX(i) * f, pa.getY(i) * f * 0.8, pa.getZ(i) * f); } g.computeVertexNormals(); return colorize(g, '#ffffff'); })();
-        return { pA, pB, t, u, b, grass: kit.tuftGeo(), rock };
+        return { pA, pB, t, u, b, grass: kit.tuftGeo(), rock, pine, spruce, cherry };
     }, []);
-    const tex = useMemo(() => { const l = new THREE.TextureLoader(); const mk = (u: string, rep = false) => { const t = l.load(u); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = QK.anisotropy; if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 3); } return t; }; return { leaf: mk('/spray145.png'), bark: mk('/bark.jpg', true), bush: mk('/shrub134.png') }; }, []);
+    const tex = useMemo(() => { const l = new THREE.TextureLoader(); const mk = (u: string, rep = false) => { const t = l.load(u); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = QK.anisotropy; if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 3); } return t; }; return { leaf: mk('/spray145.png'), bark: mk('/bark.jpg', true), bush: mk('/shrub134.png'), pine: mk(PINE_URL), pbark: mk('/pinebark.jpg', true) }; }, []);
     const mats = useMemo(() => ({
         palmTrunk: Object.assign(new THREE.MeshLambertMaterial({ map: kit.palmTrunkTex(), bumpMap: kit.palmTrunkTex(), bumpScale: 1.6, vertexColors: true, color: '#a89274', emissive: '#3a3024', side: THREE.DoubleSide }), { onBeforeCompile: hazeShader(kit.tod, kit.trunkWindShader) }),
         palmLeaf: Object.assign(new THREE.MeshLambertMaterial({ map: kit.palmFrondTex(), vertexColors: true, emissive: '#2a3a14', alphaTest: 0.5, side: THREE.DoubleSide }), { onBeforeCompile: hazeShader(kit.tod, kit.palmFrondShader) }),
@@ -74,6 +81,10 @@ function Island({ sim, kit }: { sim: Sim; kit: SouthSeaKit }) {
         bush: Object.assign(new THREE.MeshLambertMaterial({ map: tex.bush, color: '#dce1cd', emissive: '#182510', alphaTest: 0.5, side: THREE.DoubleSide }), { onBeforeCompile: hazeShader(kit.tod, kit.leafWindShader) }),
         grass: Object.assign(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, emissive: '#1c3410' }), { onBeforeCompile: kit.parkGrassOnCompile(GRASS_U) }),   // 2c: the park meadow's grass + its shader
         rock: Object.assign(new THREE.MeshLambertMaterial({ vertexColors: true, color: '#d4ccba', emissive: '#1a1814', flatShading: true }), { onBeforeCompile: hazeShader(kit.tod) }),
+        pineTrunk: Object.assign(new THREE.MeshLambertMaterial({ map: tex.pbark, bumpMap: tex.pbark, bumpScale: 2.2, vertexColors: true, emissive: '#4a3a2c', side: THREE.DoubleSide }), { onBeforeCompile: hazeShader(kit.tod, kit.trunkWindShader), customProgramCacheKey: () => 'islPineTrunk' }),
+        pineLeaf: Object.assign(new THREE.MeshLambertMaterial({ map: tex.pine, vertexColors: true, emissive: '#426439', alphaTest: 0.5, side: THREE.DoubleSide }), { onBeforeCompile: hazeShader(kit.tod, kit.leafWindShader), customProgramCacheKey: () => 'islPineLeaf' }),
+        cherryTrunk: Object.assign(new THREE.MeshLambertMaterial({ map: tex.bark, bumpMap: tex.bark, bumpScale: 2.2, vertexColors: true, color: '#a5949a', emissive: '#4a3a2c', side: THREE.DoubleSide }), { onBeforeCompile: hazeShader(kit.tod, kit.trunkWindShader), customProgramCacheKey: () => 'islCherryTrunk' }),
+        cherryLeaf: Object.assign(new THREE.MeshLambertMaterial({ map: tex.leaf, vertexColors: true, emissive: '#426439', alphaTest: 0.5, side: THREE.DoubleSide }), { onBeforeCompile: hazeShader(kit.tod, cherryLeafShader), customProgramCacheKey: () => 'islCherryLeaf' }),
     }), []);
     const vegRef = useRef<THREE.Group>(null!), nearRef = useRef<THREE.Group>(null!), grassRef = useRef<THREE.Group>(null!);
     const inst = useRef<Record<string, THREE.InstancedMesh | null>>({});
@@ -85,6 +96,8 @@ function Island({ sim, kit }: { sim: Sim; kit: SouthSeaKit }) {
         fill('bt', veg.broad, '#ffffff', '#d8cfc4'); fill('bl', veg.broad, '#ffffff', '#b8e890');
         fill('ut', veg.tall, '#ffffff', '#e0d8d0'); fill('ul', veg.tall, '#ffffff', '#c8e8a8');
         fill('bush', veg.bush, '#e6f0d6', '#ffffff'); fill('rock', veg.rock, '#ffffff', '#b8b0a0');
+        fill('pnt', veg.pine, '#ffffff', '#e0d8d0'); fill('pnl', veg.pine, '#ffffff', '#c8dca8'); fill('spt', veg.spruce, '#ffffff', '#e0d8d0'); fill('spl', veg.spruce, '#e8f0e0', '#ffffff');
+        fill('cht', veg.cherry, '#ffffff', '#e0d8d0'); fill('chl', veg.cherry, '#ffc8dc', '#ffb0cc');
     }, []);
     const grassPool = useMemo(() => { setSeed(555); const N = PHONE ? 2600 : 6500, R0 = PHONE ? 34 : 44, a = new Float32Array(N * 5); for (let i = 0; i < N; i++) { const r = R0 * Math.sqrt(rnd()), t = rnd() * 6.283; a[i * 5] = Math.cos(t) * r; a[i * 5 + 1] = Math.sin(t) * r; a[i * 5 + 2] = rnd() * 6.283; a[i * 5 + 3] = 0.75 + rnd() * 0.7; a[i * 5 + 4] = rnd(); } return { N, a }; }, []);
     const grassAt = useRef([1e9, 1e9]);
@@ -125,6 +138,9 @@ function Island({ sim, kit }: { sim: Sim; kit: SouthSeaKit }) {
             {I('ut', geos.u.trunk, mats.trunk, veg.tall.length)}{I('ul', geos.u.leaves, mats.leaf, veg.tall.length)}
             {I('bush', geos.b.leaves, mats.bush, veg.bush.length)}
             {I('rock', geos.rock, mats.rock, veg.rock.length)}
+            {I('pnt', geos.pine.trunk, mats.pineTrunk, veg.pine.length)}{I('pnl', geos.pine.leaves, mats.pineLeaf, veg.pine.length)}
+            {I('spt', geos.spruce.trunk, mats.pineTrunk, veg.spruce.length)}{I('spl', geos.spruce.leaves, mats.pineLeaf, veg.spruce.length)}
+            {I('cht', geos.cherry.trunk, mats.cherryTrunk, veg.cherry.length)}{I('chl', geos.cherry.leaves, mats.cherryLeaf, veg.cherry.length)}
         </group>
         <group ref={grassRef}><instancedMesh ref={(m) => { inst.current['grass'] = m; }} userData={{ outlineMaskAlpha: 0.5, outlineMaskThreshold: 0.75 }} args={[geos.grass, mats.grass, grassPool.N]} frustumCulled={false} /></group>
         <mesh geometry={river} material={RIVER_MAT} renderOrder={1} frustumCulled={false} />
