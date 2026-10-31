@@ -94,33 +94,54 @@ function prepareModel(id: string, gltf: GLTF): Model {
 
 function InstancedAsset({ prefix, model, placements }: { prefix: string; model: Model; placements: Placement[] }) {
     const refs = useRef<(THREE.InstancedMesh | null)[]>([]);
+    /* Shifat 9:43 AM 'freeze what's not visible': each asset is ONE instanced batch for the whole city, so every building was drawn every frame even
+       behind the camera. Now every 6th frame the instances inside the view frustum are packed to the front of the batch and only those are drawn
+       (same draw calls, far fewer triangles on land). Matrices are precomputed once. */
+    const cull = useMemo(() => {
+        const object = new THREE.Object3D(), mats: THREE.Matrix4[] = [], spheres: THREE.Sphere[] = [];
+        const d = model.dimensions;
+        for (const p of placements) {
+            object.position.set(p.x, p.y, p.z); object.rotation.set(0, p.yaw, 0); object.scale.set(p.sx, p.sy, p.sz); object.updateMatrix();
+            mats.push(object.matrix.clone());
+            spheres.push(new THREE.Sphere(new THREE.Vector3(p.x, p.y + d.y * p.sy * 0.5, p.z), 0.5 * Math.hypot(d.x * p.sx, d.y * p.sy, d.z * p.sz)));
+        }
+        return { mats, spheres, frame: Math.floor(Math.random() * 6), fr: new THREE.Frustum(), pv: new THREE.Matrix4(), last: -1 };
+    }, [model, placements]);
     useEffect(() => {
-        const object = new THREE.Object3D();
         refs.current.forEach((mesh, partIndex) => {
             if (!mesh) return;
-            for (let i = 0; i < placements.length; i++) {
-                const p = placements[i];
-                object.position.set(p.x, p.y, p.z);
-                object.rotation.set(0, p.yaw, 0);
-                object.scale.set(p.sx, p.sy, p.sz);
-                object.updateMatrix();
-                mesh.setMatrixAt(i, object.matrix);
-            }
+            for (let i = 0; i < placements.length; i++) mesh.setMatrixAt(i, cull.mats[i]);
             mesh.count = placements.length;
             mesh.instanceMatrix.needsUpdate = true;
             mesh.computeBoundingSphere();
+            mesh.frustumCulled = false;   // culled per instance below
             mesh.name = `${prefix}-${model.id}-part-${partIndex}`;
             mesh.userData.polyforkId = model.id;
             mesh.userData.polyforkInstances = placements.length;
         });
-    }, [model.id, model.parts.length, placements, prefix]);
+        cull.last = -1;
+    }, [model.id, model.parts.length, placements, prefix, cull]);
+    useFrame(({ camera }) => {
+        if (++cull.frame % 6 !== 0) return;
+        cull.pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); cull.fr.setFromProjectionMatrix(cull.pv);
+        let n = 0, sig = 0;
+        const meshes = refs.current;
+        for (let i = 0; i < placements.length; i++) {
+            if (!cull.fr.intersectsSphere(cull.spheres[i])) continue;
+            for (const m of meshes) if (m) m.setMatrixAt(n, cull.mats[i]);
+            n++; sig = (sig * 31 + i) | 0;
+        }
+        if (sig === cull.last && meshes[0] && meshes[0].count === n) return;   // same set as last time: no upload
+        cull.last = sig;
+        for (const m of meshes) if (m) { m.count = n; m.visible = n > 0; m.instanceMatrix.needsUpdate = true; }
+    });
     if (!placements.length) return null;
     return <group name={`${prefix}-${model.id}`}>
         {model.parts.map((part, index) => <instancedMesh
             key={index}
             ref={(mesh) => { refs.current[index] = mesh; }}
             args={[part.geometry, part.material, placements.length]}
-            frustumCulled
+            frustumCulled={false}
             dispose={null}
         />)}
     </group>;
