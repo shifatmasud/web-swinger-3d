@@ -17,7 +17,7 @@ import { shadowGeo, shadowMat } from './shadowbot';
 import { withPedestrianHands } from './pedestrianHands';
 import { GiantBoss } from './GiantBoss';
 import { BossArenaMarker } from './BossArenaMarker';
-import { HBOSS } from './seaWorld';
+import { poolAt, HBOSS } from './seaWorld';
 import { BOSS_BODY_OFFSET } from './bossConfig';
 import { attachInk, syncInk } from './ink';
 import { robotGeo, robotMat, armorRobot, armorCompanion, armorDrone, coatRobot, EYE_BLUE, EYE_RED } from './robotgeo';
@@ -55,7 +55,7 @@ import { SKY_VS, SKY_FS } from './shaders/sky';
 import { CITY_VS, CITY_FS } from './shaders/city';
 import { FXAA_FS, FXAA_SHARP_FS, OUT_FS } from './shaders/post';
 import { GLOW_VS, GLOW_FS } from './shaders/glow';
-import { HD, applyRatio, worldBufferSize, worldTarget, registerHero, createHeroComposite } from './heroHD';
+import { HD, applyRatio, worldBufferSize, worldTarget, registerHero, createHeroComposite, HERO_WATER } from './heroHD';
 import { SELECTIVE_BLOOM_LAYER } from './renderLayers';
 
 
@@ -523,6 +523,11 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
         if (Math.abs(cp.fov - targetFov) > 0.05) { cp.fov += (targetFov - cp.fov) * Math.min(1, dt * 6); cp.updateProjectionMatrix(); }
         {   // water: animate, and split view (waterline across the screen when the camera is at the surface)
             waterMat.uniforms.uTime.value = sim.t; seabedMat.uniforms.uTime.value = sim.t; wallMat.uniforms.uTime.value = sim.t;
+            {   // #3 submerged hero parts: water surface under the hero for the hero-pass water tint (src/heroHD.ts HERO_WATER)
+                const hx = sim.pos[0], hz = sim.pos[2], inPool = hz < WATER_Z && poolAt(hx, hz), inZone = hz < WATER_Z || isLakeWater(hx, hz);
+                HERO_WATER.uWL.value = inZone ? (inPool || isLakeWater(hx, hz) ? waterSurfaceAt(hx, hz, sim.t) : waterRenderY(hx, hz, sim.t)) : -1e4;
+                HERO_WATER.uWC.value.copy(UWF.value).convertLinearToSRGB();   // the hero pass tints after the output colour-space conversion
+            }
             const uw = document.getElementById('uw');
             if (uw) { const dq = Math.round(TOD.day.value * 20); if (uw.dataset.dq !== String(dq)) { uw.dataset.dq = String(dq); const d = dq / 20, k = 0.12 + 0.88 * d, c = (r: number, g: number, b: number, a: number) => `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${(a + (1 - d) * 0.25).toFixed(2)})`;
                 uw.style.background = `linear-gradient(180deg, ${c(110, 215, 235, 0.24)}, ${c(30, 140, 175, 0.3)} 45%, ${c(8, 70, 105, 0.5)})`; } }   // underwater tint follows the light: the fixed bright-teal wash used to light up the night sea from inside

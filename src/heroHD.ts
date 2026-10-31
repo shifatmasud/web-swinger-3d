@@ -61,6 +61,37 @@ export function crispHeroTexture(tex: THREE.Texture | null | undefined, gl?: THR
     tex.needsUpdate = true;
 }
 
+/* #3 submerged hero parts (Shifat 2:32 PM + 2:53 PM 'heroes' submerged body parts aren't visible / weird blue thingy in ponds'): the water surface writes
+   depth, so a diving hero vanished behind it. Below the water line each hero fragment now (a) takes the water's colour by the length of its underwater
+   light path (Beer-Lambert style, clear near the surface, deep teal further down) and (b) pulls its depth up to just in front of the water surface on the
+   camera ray, so the surface no longer hides it while real rocks/walls in front still do. Only hero fragments pay for this (no change to the water or
+   world shaders, no early-z loss there). Scene sets uWL (water surface under the hero, -1e4 when not in water) and uWC each frame. */
+export const HERO_WATER = { uWL: { value: -1e4 }, uWC: { value: new THREE.Color('#1a6f85') }, uPV: { value: new THREE.Matrix4() } };
+const patched = new WeakSet<THREE.Material>();
+function patchWater(m: THREE.Material) {
+    if (patched.has(m)) return; patched.add(m);
+    const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey.bind(m);
+    m.onBeforeCompile = (sh, r) => {
+        prev.call(m, sh, r);
+        Object.assign(sh.uniforms, HERO_WATER);
+        sh.vertexShader = 'varying vec3 vHwW;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vHwW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        const end = sh.fragmentShader.lastIndexOf('}');
+        sh.fragmentShader = 'varying vec3 vHwW; uniform float uWL; uniform vec3 uWC; uniform mat4 uPV;\n' + sh.fragmentShader.slice(0, end) + `
+  float hwD = gl_FragCoord.z;
+  if (vHwW.y < uWL) {
+    vec3 hwC = cameraPosition; bool hwAbove = hwC.y > uWL;
+    vec3 hwS = hwAbove ? hwC + (vHwW - hwC) * ((hwC.y - uWL) / max(hwC.y - vHwW.y, 1e-3)) : hwC;
+    float hwPath = length(vHwW - hwS) + (uWL - vHwW.y) * 0.6;
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, uWC, (1.0 - exp(-hwPath * 0.3)) * 0.8);
+    if (hwAbove) { vec3 hwP = hwS + normalize(hwC - hwS) * (0.5 - 0.07 * min(length(vHwW - hwS), 6.0));   /* keeps the hero's own front/back order (farther parts land nearer the surface) so no z-fight speckle */ vec4 hwQ = uPV * vec4(hwP, 1.0); hwD = min(hwD, clamp((hwQ.z / hwQ.w) * 0.5 + 0.5, 0.0, 1.0)); }
+  }
+  gl_FragDepth = hwD;
+}`;
+    };
+    m.customProgramCacheKey = () => prevKey() + '|heroWater1';
+    m.needsUpdate = true;
+}
+
 const COMP_FS = `uniform sampler2D tWorld; uniform sampler2D tDepth; varying vec2 vUv;
 void main(){ gl_FragColor = vec4(texture2D(tWorld, vUv).rgb, 1.0); gl_FragDepth = texture2D(tDepth, vUv).r; }`;
 
@@ -81,7 +112,7 @@ export function createHeroComposite() {
     const retag = (scene: THREE.Scene) => {
         lights.length = 0; scene.traverse((o) => { if ((o as THREE.Light).isLight) { o.layers.enable(HERO_LAYER); lights.push(o); } });
         heroMeshes.length = 0; mats.clear();
-        HD.roots.forEach((r) => r.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { o.layers.set(HERO_LAYER); heroMeshes.push(m); }   /* Shifat 9:58 AM 'draw heroes HD only': hero meshes live ONLY on the hero layer, so the dpr-1 world pass skips them and they are drawn once, here */ }));
+        HD.roots.forEach((r) => r.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { o.layers.set(HERO_LAYER); heroMeshes.push(m); (Array.isArray(m.material) ? m.material : [m.material]).forEach(patchWater); }   /* Shifat 9:58 AM 'draw heroes HD only': hero meshes live ONLY on the hero layer, so the dpr-1 world pass skips them and they are drawn once, here */ }));
     };
     function render(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
         if (!HD.on || !HD.rt || !HD.depth) return;
@@ -90,6 +121,7 @@ export function createHeroComposite() {
         try {
             mat.uniforms.tWorld.value = HD.rt.texture; mat.uniforms.tDepth.value = HD.depth;
             gl.setRenderTarget(null); gl.autoClear = false;
+            HERO_WATER.uPV.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
             gl.render(qs, qc);   // world image + world depth onto the native-res canvas
             // heroes again, native res, over their own low-res copy (polygon offset wins the tie with their own world depth)
             hidden.length = 0;

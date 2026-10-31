@@ -167,7 +167,8 @@ export const OCEAN_FRAG = '#include <packing>\n#define WG_CHOP gChop\nbool gChop
         float pkA = uHeroA.w > 0.5 && uHeroA.y < hwA + 0.4 && uHeroA.y > hwA - 3.5 ? 1.0 - smoothstep(0.9, 2.6, length(vW.xz - uHeroA.xz)) : 0.0;
         float pkB = uHeroB.w > 0.5 && uHeroB.y < hwB + 0.4 && uHeroB.y > hwB - 3.5 ? 1.0 - smoothstep(0.8, 2.3, length(vW.xz - uHeroB.xz)) : 0.0;
         heroSee = max(heroSee, max(pkA, pkB) * 0.8);
-        if (rt > 0.0 && rt < 14.0) { vec3 Th = exp(-vec3(0.45, 0.07, 0.02) * rt * 1.6); body = mix(body, rc * mix(0.35, 1.0, uDay) * (0.55 + 0.45 * uDay) * Th + body * (1.0 - Th) * 0.6, 0.9); }
+        /* #3 (Shifat 2:53 PM): the real heroes now draw through the water from the hero pass (src/heroHD.ts HERO_WATER), so the analytic capsule stand-in is off */
+        if (false) { vec3 Th = exp(-vec3(0.45, 0.07, 0.02) * rt * 1.6); body = mix(body, rc * mix(0.35, 1.0, uDay) * (0.55 + 0.45 * uDay) * Th + body * (1.0 - Th) * 0.6, 0.9); }
       }
       float heroK = 0.0; vec3 heroC = vec3(0.0);
       if (!below && camUp && r.y > 0.0) {
