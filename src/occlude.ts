@@ -20,6 +20,7 @@ export function occludeFade(sh: any) {
     { vec3 oc = cameraPosition, oh = uOccHero, seg = oh - oc; float L2 = max(dot(seg, seg), 1e-3);
       float t = clamp(dot(vOccO - oc, seg) / L2, 0.0, 1.0); float dseg = length(vOccO - (oc + seg * t));   /* 12:02 AM: test the robot's own centre, so a robot hides WHOLE instead of leaving shredded pieces */
       float behind = 1.0 - smoothstep(0.78, 0.95, t);   // only between the lens and the hero, not past the hero
-      float f = max((1.0 - smoothstep(1.5, 1.9, dseg)) * behind, 1.0 - smoothstep(2.6, 3.2, length(vOccO - oc)));
+      float fight = smoothstep(2.5, 4.5, length(vOccO - oh));   /* Shifat Oct 31 1:57 PM 'enemy near camera not visible': a robot within ~4 m of the hero is the one being fought - never hidden */
+      float f = max((1.0 - smoothstep(1.2, 1.6, dseg)) * behind * fight, 1.0 - smoothstep(1.3, 1.7, length(vOccO - oc)));   // only a robot squarely on the line of sight, or right in the lens (< ~1.5 m), is cut
       if (f > 0.45) discard;   /* clean cut instead of a dither: the outline pass inked every dither hole as black speckle */ }`);
 }
