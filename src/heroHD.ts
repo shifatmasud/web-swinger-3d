@@ -66,8 +66,11 @@ export function crispHeroTexture(tex: THREE.Texture | null | undefined, gl?: THR
    light path (Beer-Lambert style, clear near the surface, deep teal further down) and (b) pulls its depth up to just in front of the water surface on the
    camera ray, so the surface no longer hides it while real rocks/walls in front still do. Only hero fragments pay for this (no change to the water or
    world shaders, no early-z loss there). Scene sets uWL (water surface under the hero, -1e4 when not in water) and uWC each frame. */
-export const HERO_WATER = { uWL: { value: -1e4 }, uWC: { value: new THREE.Color('#1a6f85') }, uPV: { value: new THREE.Matrix4() } };
+export const HERO_WATER = { uMir: { value: 0 }, uWL: { value: -1e4 }, uWC: { value: new THREE.Color('#1a6f85') }, uPV: { value: new THREE.Matrix4() } };
 const patched = new WeakSet<THREE.Material>();
+const _R = new THREE.Matrix4();
+const mirCam = new THREE.PerspectiveCamera(); mirCam.matrixAutoUpdate = false; mirCam.matrixWorldAutoUpdate = false;
+const mirSaved: [THREE.Material, boolean, boolean, THREE.Side][] = [];
 function patchWater(m: THREE.Material) {
     if (patched.has(m)) return; patched.add(m);
     const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey.bind(m);
@@ -76,7 +79,19 @@ function patchWater(m: THREE.Material) {
         Object.assign(sh.uniforms, HERO_WATER);
         sh.vertexShader = 'varying vec3 vHwW;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vHwW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
         const end = sh.fragmentShader.lastIndexOf('}');
-        sh.fragmentShader = 'varying vec3 vHwW; uniform float uWL; uniform vec3 uWC; uniform mat4 uPV;\n' + sh.fragmentShader.slice(0, end) + `
+        sh.fragmentShader = 'varying vec3 vHwW; uniform float uWL; uniform vec3 uWC; uniform mat4 uPV; uniform float uMir;\n' + sh.fragmentShader.slice(0, end) + `
+  if (uMir > 0.5) {   /* #4 full-body reflection (Shifat 2:32 PM): this pass is drawn with the camera mirrored in the water plane; only the parts above
+       the water reflect, laid just in front of the water surface on the real view ray (so land/objects in front still cover it), water-tinted, see-through */
+    if (vHwW.y < uWL) discard;
+    vec3 hwM = cameraPosition, hwR = vec3(hwM.x, 2.0 * uWL - hwM.y, hwM.z);
+    vec3 hwS2 = hwM + (vHwW - hwM) * ((uWL - hwM.y) / max(vHwW.y - hwM.y, 1e-3));
+    vec3 hwP2 = hwS2 + normalize(hwR - hwS2) * (0.5 - 0.07 * min(length(vHwW - hwS2), 6.0));
+    vec4 hwQ2 = uPV * vec4(hwP2, 1.0);
+    float hwH = vHwW.y - uWL;
+    gl_FragColor = vec4(mix(gl_FragColor.rgb * 0.85, uWC, 0.3), 0.45 * exp(-hwH * 0.06));
+    gl_FragDepth = clamp((hwQ2.z / hwQ2.w) * 0.5 + 0.5, 0.0, 1.0);
+    return;
+  }
   float hwD = gl_FragCoord.z;
   if (vHwW.y < uWL) {
     vec3 hwC = cameraPosition; bool hwAbove = hwC.y > uWL;
@@ -88,7 +103,7 @@ function patchWater(m: THREE.Material) {
   gl_FragDepth = hwD;
 }`;
     };
-    m.customProgramCacheKey = () => prevKey() + '|heroWater1';
+    m.customProgramCacheKey = () => prevKey() + '|heroWater2';
     m.needsUpdate = true;
 }
 
@@ -135,6 +150,23 @@ export function createHeroComposite() {
             scene.background = null;
             camera.layers.set(HERO_LAYER);
             gl.render(scene, camera);
+            const wl = HERO_WATER.uWL.value;
+            if (wl > -1e3 && (camera as THREE.PerspectiveCamera).isPerspectiveCamera && camera.position.y > wl + 1.6)   /* not while the lens straddles the surface (split view shows the underwater half there) */ {   // #4 mirrored heroes: same meshes once more through a camera reflected in the water plane
+                _R.set(1, 0, 0, 0, 0, -1, 0, 2 * wl, 0, 0, 1, 0, 0, 0, 0, 1);
+                mirCam.matrixWorld.multiplyMatrices(_R, camera.matrixWorld); mirCam.matrixWorldInverse.copy(mirCam.matrixWorld).invert();
+                mirCam.projectionMatrix.copy((camera as THREE.PerspectiveCamera).projectionMatrix); mirCam.projectionMatrixInverse.copy((camera as THREE.PerspectiveCamera).projectionMatrixInverse);
+                mirCam.layers.set(HERO_LAYER);
+                mirSaved.length = 0;
+                for (const m of heroMeshes) for (const x of (Array.isArray(m.material) ? m.material : [m.material]) as THREE.Material[]) {
+                    mirSaved.push([x, x.transparent, x.depthWrite, x.side]);
+                    x.transparent = true; x.depthWrite = false; x.side = x.side === THREE.DoubleSide ? THREE.DoubleSide : x.side === THREE.BackSide ? THREE.FrontSide : THREE.BackSide;   // the mirror flips the winding
+                }
+                HERO_WATER.uMir.value = 1;
+                try { gl.render(scene, mirCam); } finally {
+                    HERO_WATER.uMir.value = 0;
+                    for (const [x, t, d, s] of mirSaved) { x.transparent = t; x.depthWrite = d; x.side = s; } mirSaved.length = 0;
+                }
+            }
         } finally {
             saved.forEach((v, x) => { x.polygonOffset = v[0]; x.polygonOffsetFactor = v[1]; x.polygonOffsetUnits = v[2]; }); saved.clear(); mats.clear();
             gl.shadowMap.autoUpdate = oldShadow;
