@@ -418,7 +418,7 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
     const wakeTrail = useRef<{x:number,z:number,t:number}[]>([]); const wakeStrength = useRef(0); const wakeBorn = useRef(0);
     const wakeGeo = useMemo(() => { const g = new THREE.BufferGeometry(), pa = new Float32Array(2 * 25 * 2 * 3), uv = new Float32Array(2 * 25 * 2 * 2), ix: number[] = []; for (let side = 0; side < 2; side++) for (let j = 0; j <= 24; j++) { const n = side * 50 + j * 2; uv[n*2] = uv[(n+1)*2] = j/24; uv[n*2+1] = 0; uv[(n+1)*2+1] = 1; if (j < 24) ix.push(n,n+1,n+2,n+1,n+3,n+2); } g.setAttribute('position', new THREE.BufferAttribute(pa, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(ix); return g; }, []);
     const wakeMat = useMemo(() => new THREE.ShaderMaterial({transparent:true, depthWrite:false, side:THREE.DoubleSide, uniforms:{uA:{value:0}}, vertexShader:'varying vec2 vU; void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'varying vec2 vU; uniform float uA; void main(){float soft=sin(vU.y*3.14159);float trail=pow(1.0-vU.x,1.5)*smoothstep(0.0,0.12,vU.x); gl_FragColor=vec4(0.82,0.96,1.0,soft*trail*uA);}' }), []);
- const splashRef = useRef<THREE.Group>(null!), splashSt = useRef({ prev: false, t0: -9 }), dropSt = useRef({ side: -1 });
+ const splashRef = useRef<THREE.Group>(null!), splashSt = useRef({ prev: false, t0: -9 });
     const rig = useMemo(() => {
         const r = buildRig();
         const redM = new THREE.MeshLambertMaterial({ color: '#d4162e', side: THREE.DoubleSide });
@@ -535,9 +535,6 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
             // Shifat Oct 29: "fog should only be visible at great distance, not close" -> linear fog: clear water near you, fog only far off.
             if (!(state.scene.fog instanceof THREE.Fog)) state.scene.fog = new THREE.Fog(UWF.value.getHex(), 1e4, 2e4);   // kept for the whole session (pushed out of reach above water) so entering water causes no shader recompiles
             { const fg = state.scene.fog as THREE.Fog; if (under) { const deep = Math.min(1, Math.max(0, -dy / 30)); fg.color.copy(UWF.value).multiplyScalar(1 - 0.45 * deep); fg.near = 55 - 15 * deep; fg.far = 190 - 50 * deep; (state.scene.background as THREE.Color).copy(fg.color); } else { fg.near = 1e4; fg.far = 2e4; } }
-            {   // lens droplets: the lens crossed the surface (in or out) -> drops that slide off over ~1.3 s
-                const side = dy < 0 ? 1 : 0, ds = dropSt.current; if (inWater && ds.side >= 0 && side !== ds.side && Math.abs(dy) < 4) WATERLINE.drop.value = 1; ds.side = inWater ? side : -1;
-                if (WATERLINE.drop.value > 0) WATERLINE.drop.value = Math.max(0, WATERLINE.drop.value - dt / 1.3); }
             {   // Shifat Oct 31 12:27 'air water split view': the lens straddles the surface. The post pass gives everything below the wave line the
                 // underwater look (same fog colour as diving). Line = where rays at 1 m from the lens dip under the local wave plane (tilts with the swell).
                 WATERLINE.v.w = 0;
