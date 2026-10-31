@@ -11,6 +11,7 @@ const DBG = !!(import.meta as any).env.VITE_DBG;   // test hooks only in instrum
 const DN_DUR = 300, DN_PH0 = Math.asin(0.22 / 0.95);
 const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _cn = new THREE.Color(0.035, 0.055, 0.13), _cnoon = new THREE.Color(0.76, 0.84, 0.93), _cwarm = new THREE.Color(FOG[0], FOG[1], FOG[2]);
 const sstep = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const _uwDay = new THREE.Color();
 export function DayNight() {
     const { scene } = useThree();
     const ls = useRef<{ h: THREE.HemisphereLight; a: THREE.DirectionalLight; b: THREE.DirectionalLight } | null>(null);
@@ -22,7 +23,7 @@ export function DayNight() {
         if (DBG) (window as any).__tod = { sy, day, warm, fog: TOD.fog.toArray() }; TOD.day.value = day; TOD.warm.value = warm; TOD.noon.value = sstep(0.3, 0.95, sy);
         _c1.copy(_cnoon).lerp(_cwarm, warm).lerp(_cn, 1 - day); TOD.fog.copy(_c1); TOD.sky.copy(_c1).lerp(_c2.set('#c4dcef'), 0.3 * day);
         if (!UW.on) (scene.background as THREE.Color).copy(_c1);
-        UWF.value.set('#176e8c').multiplyScalar(0.2 + 0.8 * day);
+        UWF.value.set('#0e3a5e').lerp(_uwDay.set('#1a7f9c'), day);   /* Shifat 2:31 PM 'dive too dark, colourless': moonlit deep blue at night (was 20% of the day teal = near black), clearer turquoise by day */
         { const wu = waterMat.uniforms, k = 0.16 + 0.84 * day; wu.uDeep.value.set('#0a6f92').multiplyScalar(k); wu.uShallow.value.set('#2fa8c4').multiplyScalar(k); }   // water body colour follows the light level (sky reflection already follows TOD.sky)
         const { h, a, b } = ls.current;
         h.color.set('#d4e4ff').lerp(_c2.set('#3a4c8c'), 1 - day); h.intensity = 0.5 + 0.75 * day;

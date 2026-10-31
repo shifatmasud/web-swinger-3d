@@ -534,7 +534,7 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
             UW.on = under; if (under) (state.scene.background as THREE.Color).copy(UWF.value); if (DBG) (window as any).__scene = state.scene;
             // Shifat Oct 29: "fog should only be visible at great distance, not close" -> linear fog: clear water near you, fog only far off.
             if (!(state.scene.fog instanceof THREE.Fog)) state.scene.fog = new THREE.Fog(UWF.value.getHex(), 1e4, 2e4);   // kept for the whole session (pushed out of reach above water) so entering water causes no shader recompiles
-            { const fg = state.scene.fog as THREE.Fog; if (under) { const deep = Math.min(1, Math.max(0, -dy / 30)); fg.color.copy(UWF.value).multiplyScalar(1 - 0.45 * deep); fg.near = 55 - 15 * deep; fg.far = 190 - 50 * deep; (state.scene.background as THREE.Color).copy(fg.color); } else { fg.near = 1e4; fg.far = 2e4; } }
+            { const fg = state.scene.fog as THREE.Fog; if (under) { const deep = Math.min(1, Math.max(0, -dy / 30)); fg.color.copy(UWF.value).multiplyScalar(1 - 0.3 * deep); fg.near = 55 - 15 * deep; fg.far = 190 - 50 * deep; (state.scene.background as THREE.Color).copy(fg.color); } else { fg.near = 1e4; fg.far = 2e4; } }
             {   // Shifat Oct 31 12:27 'air water split view': the lens straddles the surface. The post pass gives everything below the wave line the
                 // underwater look (same fog colour as diving). Line = where rays at 1 m from the lens dip under the local wave plane (tilts with the swell).
                 WATERLINE.v.w = 0;
