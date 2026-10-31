@@ -696,7 +696,7 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
     });
 
     return <>
-        <mesh ref={beaconRef} onUpdate={(o) => o.layers.enable(SELECTIVE_BLOOM_LAYER)} frustumCulled={false}><cylinderGeometry args={[4, 4, 90, 12, 1, true]} /><meshBasicMaterial color="#5ff2ff" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} fog={false} /></mesh>
+        <mesh ref={beaconRef} onUpdate={(o) => o.layers.enable(SELECTIVE_BLOOM_LAYER)}><cylinderGeometry args={[4, 4, 90, 12, 1, true]} /><meshBasicMaterial color="#5ff2ff" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} fog={false} /></mesh>
         <color attach="background" args={[FOG[0], FOG[1], FOG[2]]} />
         <hemisphereLight name="hemi" args={['#d4e4ff', '#8a9a6a', 1.25]} />
         <directionalLight name="sun1" position={[-30, 60, 20]} intensity={1.8} color="#ffdcae" />
