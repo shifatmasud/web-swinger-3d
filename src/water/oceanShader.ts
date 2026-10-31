@@ -37,9 +37,11 @@ export const OCEAN_FRAG = '#include <packing>\n#define WG_CHOP gChop\nbool gChop
     float oceanZ(vec2 uv){ return perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar); }
     vec3 sceneCol(vec2 uv){   /* Shifat 3:30 PM 'same on all devices': one 2-tap soft read everywhere (phone was 1 tap, desktop 4) */
       vec2 o = uSceneTx * vec2(0.7, 0.45); vec3 c = texture2D(tScene, uv + o).rgb + texture2D(tScene, uv - o).rgb; return linearToOutputTexel(vec4(c * 0.5, 1.0)).rgb; }   /* rotated-grid 4-tap: the low-res scene copy no longer shows fish/whales/boats under the water as pixel blocks */
-    uniform vec4 uWL;
+    uniform vec4 uWL; uniform float uWLy[9];
+    float wlY(float x){ float f = clamp(x * 4.0 + 4.0, 0.0, 7.999); int i = int(f); float t = f - float(i); t = t * t * (3.0 - 2.0 * t); return mix(uWLy[i], uWLy[i + 1], t) + 0.035 * sin(x * 5.3 + uWL.x * 1.7) + 0.018 * sin(x * 13.7 - uWL.x * 2.9) + 0.008 * sin(x * 31.0 + uWL.x * 4.1); }   /* chop + ripples the CPU swell does not carry, same in sea + post so the cut matches */
     void main(){
-      if (uWL.w > 0.5 && dot(uWL.xyz, vec3(vScreen.xy / vScreen.w, 1.0)) < 0.0) discard;   /* split lens: below the waterline the lens is under water, so the surface is not between it and the underworld */
+      if (uWL.w > 0.5) { vec2 sn = vScreen.xy / vScreen.w; bool airHalf = sn.y > wlY(sn.x);   /* split lens: the upper half of the lens is in air (sees only the top of the sea), the lower half is under water (sees only the wavy underside) */
+        if (airHalf != gl_FrontFacing) discard; }
       gChop = length(cameraPosition - vW) < 120.0;   /* every device: past 120 m the 3-12 m chop is sub-pixel shimmer, so its 5 trains are skipped (phone was 90 m, desktop 160 m) */
       vec3 gj = wgj(vP0, uTime); vec2 gW = gj.xy; gChop = true;   /* Gerstner: gradient + crest Jacobian at the undisplaced point */ vec2 g = gW + vec2(sin(vW.x * 0.9 + uTime * 3.0), cos(vW.z * 0.8 + uTime * 2.4)) * 0.02;
       g += vec2(cos(dot(vW.xz, vec2(0.7, 0.4)) + uTime * 2.1), cos(dot(vW.xz, vec2(-0.35, 0.8)) - uTime * 1.7)) * 0.035 + vec2(cos(dot(vW.xz, vec2(1.7, -1.1)) + uTime * 3.3), cos(dot(vW.xz, vec2(-1.3, 1.6)) - uTime * 2.7))* 0.018;

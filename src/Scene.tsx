@@ -528,8 +528,7 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
                 uw.style.background = `linear-gradient(180deg, ${c(110, 215, 235, 0.24)}, ${c(30, 140, 175, 0.3)} 45%, ${c(8, 70, 105, 0.5)})`; } }   // underwater tint follows the light: the fixed bright-teal wash used to light up the night sea from inside
             const inBay = camera.position.z < WATER_Z + 2, inLake = isLakeWater(camera.position.x, camera.position.z), inWater = inBay || inLake;
             const surfaceY = inLake ? waterSurfaceAt(camera.position.x, camera.position.z, sim.t) : waterRenderY(camera.position.x, camera.position.z, sim.t); const dy = camera.position.y - surfaceY; const split = inWater && dy > -0.6 && dy < 0.9, under = inWater && dy <= -0.6 || (inWater && dy < 0 && !split);
-            const camY0 = camera.position.y;   // split lens: render the frame from just above the swell, the post pass draws the underwater half from the real lens height
-            if (split && dy < 0.12) { camera.position.y = surfaceY + 0.12; camera.updateMatrixWorld(); }   // env-iter3: ocean uses the real swell height (was the flat sea level, so troughs read as underwater)
+   // env-iter3: ocean uses the real swell height (was the flat sea level, so troughs read as underwater)
             // Shifat Oct 29 "use underwater fogs inside ocean": these statements had slipped into the comment above, so the underwater
             // state never switched on. Now: underwater background + a scene fog that thickens with depth (deeper = darker, shorter view).
             UW.on = under; if (under) (state.scene.background as THREE.Color).copy(UWF.value); if (DBG) (window as any).__scene = state.scene;
@@ -539,15 +538,22 @@ export function Scene({ sim, ev, coarse, fx, perf }: SceneProps) {
             {   // Shifat Oct 31 12:27 'air water split view': the lens straddles the surface. The post pass gives everything below the wave line the
                 // underwater look (same fog colour as diving). Line = where rays at 1 m from the lens dip under the local wave plane (tilts with the swell).
                 WATERLINE.v.w = 0;
-                if (split) {
-                    const cp2 = camera as THREE.PerspectiveCamera, d = 1.0, sf = (x: number, z: number) => inLake ? waterSurfaceAt(x, z, sim.t) : waterRenderY(x, z, sim.t);
+                if (split) {   // wave-shaped line: for 9 screen columns, the height where rays 1.2 m out of the lens cross the live swell (two refinement steps)
+                    const cp2 = camera as THREE.PerspectiveCamera, d = 1.2, sf = (x: number, z: number) => inLake ? waterSurfaceAt(x, z, sim.t) : waterRenderY(x, z, sim.t);
                     camera.getWorldDirection(_wd); _wr.set(1, 0, 0).applyQuaternion(camera.quaternion); _wu.set(0, 1, 0).applyQuaternion(camera.quaternion);
-                    const lx = camera.position.x + _wd.x * d, lz = camera.position.z + _wd.z * d, h0 = sf(lx, lz);
-                    const gx = sf(lx + 0.5, lz) - sf(lx - 0.5, lz), gz = sf(lx, lz + 0.5) - sf(lx, lz - 0.5);
-                    const gv = (v: THREE.Vector3) => v.y - gx * v.x - gz * v.z, ty = Math.tan(cp2.fov * Math.PI / 360), tx = ty * cp2.aspect;
-                    WATERLINE.v.set(d * tx * gv(_wr), d * ty * gv(_wu), d * gv(_wd) + camY0 - h0, 1);
-                    WATERLINE.col.copy(UWF.value);
-                    if (DBG) (window as any).__wl = [WATERLINE.v.toArray(), dy, h0];
+                    const ty = Math.tan(cp2.fov * Math.PI / 360), tx = ty * cp2.aspect, c0 = camera.position;
+                    for (let k = 0; k < 9; k++) {
+                        const nx = -1 + k * 0.25; let ny = 0;
+                        for (let it = 0; it < 3; it++) {
+                            const dxw = _wd.x + nx * tx * _wr.x + ny * ty * _wu.x, dzw = _wd.z + nx * tx * _wr.z + ny * ty * _wu.z;
+                            const h = sf(c0.x + d * dxw, c0.z + d * dzw);
+                            // solve c0.y + d * (fwd.y + nx*tx*right.y + ny*ty*up.y) = h for ny
+                            ny = (h - c0.y - d * (_wd.y + nx * tx * _wr.y)) / (d * ty * _wu.y || 1e-4);
+                        }
+                        WATERLINE.y[k] = Math.max(-3, Math.min(3, ny));
+                    }
+                    WATERLINE.v.set(sim.t, 0, 0, 1); WATERLINE.col.copy(UWF.value);
+                    if (DBG) (window as any).__wl = [WATERLINE.y.map((v) => +v.toFixed(3)), dy];
                 }
             }
             if (uw) {   // full underwater wash only; the split is drawn by the post pass now

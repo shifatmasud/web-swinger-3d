@@ -28,7 +28,8 @@ export const FXAA_SHARP_FS = FXAA_FS.replace('uniform vec2 uRes;', 'uniform vec2
   }
   gl_FragColor = vec4(col, 1.0);
 }`);
-export const OUT_FS = `uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uNear; uniform float uFar; uniform float uTh; uniform float uOn; uniform vec4 uWL; uniform vec3 uUwC; varying vec2 vUv;
+export const OUT_FS = `uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uNear; uniform float uFar; uniform float uTh; uniform float uOn; uniform vec4 uWL; uniform float uWLy[9]; uniform vec3 uUwC; varying vec2 vUv;
+float wlY(float x){ float f = clamp(x * 4.0 + 4.0, 0.0, 7.999); int i = int(f); float t = f - float(i); t = t * t * (3.0 - 2.0 * t); return mix(uWLy[i], uWLy[i + 1], t) + 0.035 * sin(x * 5.3 + uWL.x * 1.7) + 0.018 * sin(x * 13.7 - uWL.x * 2.9) + 0.008 * sin(x * 31.0 + uWL.x * 4.1); }   /* chop + ripples the CPU swell does not carry, same in sea + post so the cut matches */
 float vz(vec2 uv){ float d = texture2D(tDepth, uv).x; float zn = d * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - zn * (uFar - uNear)); }
 void main(){
   vec4 c4 = texture2D(tColor, vUv); vec3 c = c4.rgb;
@@ -47,7 +48,7 @@ void main(){
   float k = smoothstep(0.12, 0.30, e) * (1.0 - smoothstep(22.0, 55.0, z)) * uOn * lightMask;
   c = mix(c, vec3(0.04, 0.05, 0.10), k * 0.85);
   if (uWL.w > 0.5) {   // Shifat Oct 31 12:27: half-in/half-out lens. Below the wave line the frame gets the same underwater look as diving (fog colour toward the line, teal light falloff below), with a thin meniscus on the line.
-    float wd = dot(uWL.xyz, vec3(vUv * 2.0 - 1.0, 1.0)) / max(length(uWL.xy), 1e-4);
+    vec2 sn = vUv * 2.0 - 1.0; float wd = sn.y - wlY(sn.x);
     float un = smoothstep(0.004, -0.004, wd);
     if (un > 0.0) {
       float below = clamp(-wd, 0.0, 2.0);
