@@ -10,7 +10,7 @@ export const HERO_LAYER = 2;
 const OFF = typeof location !== 'undefined' && /[?&]hd=0\b/.test(location.search);
 
 export const HD = {
-    enabled: false && !OFF,   /* Shifat 9:47 AM 'Can't we not draw twice?': the HD pass drew every hero twice plus a native-res full-screen copy each frame - OFF, heroes render once with the world at dpr 1 */
+    enabled: !OFF,
     on: false,                 // active this frame (canvas ratio > world ratio or FXAA-free heroes wanted)
     worldRatio: 1, canvasRatio: 1,
     rt: null as THREE.WebGLRenderTarget | null,
@@ -81,7 +81,7 @@ export function createHeroComposite() {
     const retag = (scene: THREE.Scene) => {
         lights.length = 0; scene.traverse((o) => { if ((o as THREE.Light).isLight) { o.layers.enable(HERO_LAYER); lights.push(o); } });
         heroMeshes.length = 0; mats.clear();
-        HD.roots.forEach((r) => r.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { o.layers.enable(HERO_LAYER); heroMeshes.push(m); } }));
+        HD.roots.forEach((r) => r.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { o.layers.set(HERO_LAYER); heroMeshes.push(m); }   /* Shifat 9:58 AM 'draw heroes HD only': hero meshes live ONLY on the hero layer, so the dpr-1 world pass skips them and they are drawn once, here */ }));
     };
     function render(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
         if (!HD.on || !HD.rt || !HD.depth) return;
@@ -95,7 +95,7 @@ export function createHeroComposite() {
             hidden.length = 0;
             for (const m of heroMeshes) {
                 const mm = (Array.isArray(m.material) ? m.material : [m.material]) as THREE.Material[];
-                if (mm.some((x) => x.transparent && x.blending !== THREE.NoBlending && x.opacity < 0.999)) { if (m.visible) { m.visible = false; hidden.push(m); } continue; }   // fading (e.g. Ghost blink): leave the world copy alone
+                if (mm.some((x) => x.transparent && x.blending !== THREE.NoBlending && x.opacity < 0.999)) continue;   // fading (Ghost blink): drawn here as-is, no polygon offset   // fading (e.g. Ghost blink): leave the world copy alone
                 for (const x of mm) mats.add(x);
             }
             saved.clear(); mats.forEach((x) => { saved.set(x, [x.polygonOffset, x.polygonOffsetFactor, x.polygonOffsetUnits]); x.polygonOffset = true; x.polygonOffsetFactor = -2; x.polygonOffsetUnits = -2; });
