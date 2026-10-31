@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { QUALITY, QK, LOWQ } from './quality';
 import { CAUSTIC_TEX, CAUSTIC_GLSL, WATER_NRM, HERO_REFL } from './caustics';
 import {
@@ -89,7 +90,32 @@ function prepareModel(id: string, gltf: GLTF): Model {
             : toLambert(mesh.material);
         parts.push({ geometry, material });
     });
-    return { id, dimensions, parts };
+    return { id, dimensions, parts: mergeParts(parts) };
+}
+
+/* 25 fps pass (Oct 31): a building came in as several meshes, each one draw call per building type. Parts whose (single) material is identical
+   in every visible property are merged into one geometry, so the same look costs fewer draw calls. Parts with array materials or
+   mismatched vertex attributes stay as they are. */
+function matSig(m: THREE.Material): string {
+    const l = m as any;
+    return [l.type, l.color?.getHexString(), l.emissive?.getHexString(), l.emissiveIntensity, l.map?.uuid, l.alphaMap?.uuid, l.aoMap?.uuid, l.vertexColors, l.transparent, l.opacity, l.alphaTest, l.side, l.flatShading].join('|');
+}
+function attrSig(g: THREE.BufferGeometry): string { return Object.keys(g.attributes).sort().map((k) => k + g.attributes[k].itemSize).join(',') + (g.index ? '#i' : '#n'); }
+function mergeParts(parts: Part[]): Part[] {
+    const groups = new Map<string, Part[]>(), out: Part[] = [];
+    for (const p of parts) {
+        if (Array.isArray(p.material)) { out.push(p); continue; }
+        const k = matSig(p.material) + '/' + attrSig(p.geometry);
+        const a = groups.get(k); if (a) a.push(p); else groups.set(k, [p]);
+    }
+    for (const a of groups.values()) {
+        if (a.length === 1) { out.push(a[0]); continue; }
+        const g = mergeGeometries(a.map((p) => p.geometry), false);
+        if (!g) { out.push(...a); continue; }
+        g.computeBoundingBox(); g.computeBoundingSphere();
+        out.push({ geometry: g, material: a[0].material });
+    }
+    return out;
 }
 
 function InstancedAsset({ prefix, model, placements }: { prefix: string; model: Model; placements: Placement[] }) {
