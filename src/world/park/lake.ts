@@ -96,7 +96,7 @@ vec2 g=vec2(0.0099*cos(a1)+0.00735*cos(a2),0.0072*cos(a1)-0.0056*cos(a2));w.y+=h
 vec4 mv=viewMatrix*w;vView=mv.xyz;vScreen=projectionMatrix*mv;gl_Position=vScreen;}`;
 export const LAKE_FS = `#include <packing>
 uniform float uTime; uniform sampler2D tScene; uniform sampler2D tDepth; uniform float uUseScene; uniform float uSteps; uniform float uNear; uniform float uFar;
-uniform mat4 uProj; uniform vec2 uPondCenter; uniform float uPondR; uniform float uShore; uniform vec3 uHero; uniform vec3 uHor; uniform vec3 uZen; uniform vec3 uSun; uniform float uDay; uniform sampler2D uNrm; uniform vec4 uHeroA; uniform vec4 uHeroB;
+uniform mat4 uProj; uniform vec2 uPondCenter; uniform float uPondR; uniform float uShore; uniform vec3 uHero; uniform vec3 uHor; uniform vec3 uZen; uniform vec3 uSun; uniform float uDay; uniform sampler2D uNrm; uniform vec4 uHeroA; uniform vec4 uHeroB; uniform sampler2D uSkyl;
 ${WATER_COMMON_GLSL}
 varying vec3 vWorld; varying vec3 vNormal; varying float vHeight; varying vec4 vScreen; varying vec3 vView;
 float sceneZ(vec2 uv){return perspectiveDepthToViewZ(texture2D(tDepth,uv).x,uNear,uFar);}
@@ -125,6 +125,10 @@ void main(){
     if(uSteps>12.0){float a0=tp,a1=t;for(int j=0;j<4;j++){float m=0.5*(a0+a1);vec3 M=vView+Rv*m;vec4 cm=uProj*vec4(M,1.0);vec2 um=cm.xy/cm.w*0.5+0.5;if(M.z<sceneZ(um)){a1=m;uv=um;}else a0=m;}}
     float e=smoothstep(0.0,0.1,uv.x)*(1.0-smoothstep(0.9,1.0,uv.x))*(1.0-smoothstep(0.82,1.0,uv.y))*smoothstep(0.0,0.08,uv.y);vec2 bo=vec2(0.0035,0.0045)*(1.0+0.6*clamp(t/40.0,0.0,1.0));vec3 rs=(texture2D(tScene,uv).rgb*2.0+texture2D(tScene,uv+vec2(bo.x,0.0)).rgb+texture2D(tScene,uv-vec2(bo.x,0.0)).rgb+texture2D(tScene,uv+vec2(0.0,bo.y)).rgb+texture2D(tScene,uv-vec2(0.0,bo.y)).rgb)/6.0;/* soft 5-tap: the low-res scene copy no longer reads as pixel blocks, and blurs more for far objects like real ripple-roughened water */refl=mix(refl,reflTint(rs,refl),e*WATER_REFL_W);reflDist=t;break;}/* same soft blue subtle reflections as the sea */
    tp=t;}}
+ if(!below&&reflDist>9e4){/* #5 pond skyline illusion: trees on the bank + towers, one fetch (src/water/skylineRefl.ts POND_SKYL_TEX), calm-elevation streaks like the sea */
+  vec3 rr=reflect(-V,vec3(0.0,1.0,0.0));vec4 sk=texture2D(uSkyl,vec2(atan(rr.x,rr.z)*0.15915494+0.5,0.5));sk.rgb=pow(sk.rgb,vec3(2.2));/* ring colours are sRGB; this shader is linear before colorspace_fragment */float top=sk.a*0.35;
+  float kk=asin(clamp(V.y,0.0,1.0))/max(top,1e-3)+(N.x+N.z)*1.2;float cov=(1.0-smoothstep(1.0,2.0,kk))*mix(1.0,0.65,smoothstep(0.4,2.0,kk))*step(0.004,sk.a);
+  refl=mix(refl,mix(sk.rgb,reflTint(sk.rgb,refl),0.35)*mix(0.3,0.9,uDay),cov*0.9);F=max(F,cov*0.45);}
  if(!below&&cameraPosition.y>vWorld.y){/* Shifat 6:06 PM: both heroes reflect in the pond (flying one too), same soft capsule style as the sea/pools/river; only the part above the surface */
   float wy=vWorld.y;bool nA=uHeroA.w>0.5&&length(uHeroA.xz-vWorld.xz)<40.0&&uHeroA.y+1.55>wy,nB=uHeroB.w>0.5&&length(uHeroB.xz-vWorld.xz)<40.0&&uHeroB.y+1.5>wy;
   float qA=nA?capHitP(vWorld,R,vec3(uHeroA.x,max(uHeroA.y+0.25,wy),uHeroA.z),uHeroA.xyz+vec3(0.0,1.55,0.0),0.34):-1.0,oA=nA&&qA<0.0?capHitP(vWorld,R,vec3(uHeroA.x,max(uHeroA.y+0.15,wy),uHeroA.z),uHeroA.xyz+vec3(0.0,1.7,0.0),0.55):-1.0;
@@ -137,9 +141,9 @@ void main(){
  vec3 trans;float alpha=1.0;
  if(uUseScene>0.5&&!below){float dd=max(wz-sceneZ(suv),0.0);vec3 Nv=(viewMatrix*vec4(N,0.0)).xyz;vec2 uv2=suv+Nv.xy*0.05*clamp(dd*0.5,0.0,1.0);
   float sz2=sceneZ(uv2);if(sz2>wz){uv2=suv;sz2=sceneZ(suv);}float th=clamp(wz-sz2,0.0,12.0)*1.15;vec3 T=exp(-absorb*th);
-  vec3 behind=texture2D(tScene,uv2).rgb;vec3 hn2;float th2=hero(vWorld,Td,hn2);if(th2<th+0.5&&(vWorld+Td*th2).y<vWorld.y)behind=mix(behind,heroCol(hn2),0.85);trans=behind*T+deepCol*(1.0-T);trans=trans*vec3(0.78,1.0,0.97)+vec3(0.0,0.025,0.03)*uDay;}/* clear-pond green-turquoise cast even in the shallows (was reading grey) */
+  vec3 behind=texture2D(tScene,uv2).rgb;vec3 hn2;float th2=1e5;/* #3: the real diving heroes draw through the water now (src/heroHD.ts), the analytic stand-in (Shifat 2:53 PM 'weird blue thingy') is off */if(th2<th+0.5&&(vWorld+Td*th2).y<vWorld.y)behind=mix(behind,heroCol(hn2),0.85);trans=behind*T+deepCol*(1.0-T);trans=trans*vec3(0.78,1.0,0.97)+vec3(0.0,0.025,0.03)*uDay;}/* clear-pond green-turquoise cast even in the shallows (was reading grey) */
  else{float th=bedDepth/max(abs(Td.y),0.25);vec3 T=exp(-absorb*th);float Ts=clamp(dot(T,vec3(0.2,0.4,0.4)),0.0,1.0);
-  vec3 hn2;float th2=hero(vWorld,Td,hn2);float hk=(th2<th+0.5&&(vWorld+Td*th2).y<vWorld.y)?0.85:0.0;/* only the submerged part refracts */trans=mix(deepCol*(1.0-T)/max(1.0-Ts,0.05),heroCol(hn2),hk);alpha=max(1.0-Ts*(1.0-hk),0.42);}/* keep the turquoise body tint when looking straight down (was going grey) */
+  vec3 hn2;float th2=1e5;/* #3: the real diving heroes draw through the water now (src/heroHD.ts), the analytic stand-in (Shifat 2:53 PM 'weird blue thingy') is off */float hk=(th2<th+0.5&&(vWorld+Td*th2).y<vWorld.y)?0.85:0.0;/* only the submerged part refracts */trans=mix(deepCol*(1.0-T)/max(1.0-Ts,0.05),heroCol(hn2),hk);alpha=max(1.0-Ts*(1.0-hk),0.42);}/* keep the turquoise body tint when looking straight down (was going grey) */
  float f=below?max(F,0.12):F;vec3 col=mix(trans,refl,f);
  if(alpha<1.0){col=(refl*f+trans*(1.0-f)*alpha)/max(f+(1.0-f)*alpha,0.001);alpha=f+(1.0-f)*alpha;}
  if(below){float haze=1.0-exp(-dist*0.045);col=mix(col,vec3(0.035,0.23,0.30),haze*0.72);alpha=1.0;}

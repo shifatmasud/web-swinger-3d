@@ -10,6 +10,7 @@ import {
     buildings, world, PARK, parkH, PARK_POND, PARK_POND_Y, PARK_BRIDGE,
     bridgeSurfaceAt, isLegacyCityCore, LAKE_SHORE, BEACH_DIR, type Sim,
 } from './sim';
+import { POND_SKYL_TEX, projectPondSkyline } from './water/skylineRefl';
 import { CONTACT_FS, CONTACT_VS, FOAM_FS, FOAM_VS, LAKE_CAUSTICS_FS, LAKE_CAUSTICS_VS, LAKE_FS, LAKE_VS, rampGeometry, shorelineFoamGeometry } from './world/park/lake';
 export { LAKE_VS, LAKE_FS } from './world/park/lake';
 
@@ -514,6 +515,7 @@ export function PolyforkLakeBridge({ sim, perf, tod }: { sim: Sim; perf?: { scal
     const waterGeometry = useMemo(() => { const g = new THREE.RingGeometry(0.0001, 0.5, 96, 14); g.rotateX(-Math.PI / 2); return g; }, []);
     const { gl, scene, camera } = useThree();
     const copyFrame = useRef(0), copies = useRef(0);
+    useMemo(() => projectPondSkyline(PARK_POND.cx, PARK_POND.cz, PARK_POND_Y, PARK_POND.rx), []);   // #5: static pond skyline ring (projected once)
     // low-res opaque scene copy (colour + depth) for SSR + screen-space refraction; never allocated on ?q=low.
     const copyTarget = useMemo(() => {
         if (LOWQ) return null;
@@ -529,7 +531,7 @@ export function PolyforkLakeBridge({ sim, perf, tod }: { sim: Sim; perf?: { scal
                 uTime: { value: 0 }, tScene: { value: copyTarget ? copyTarget.texture : null }, tDepth: { value: copyTarget ? copyTarget.depthTexture : null },
                 uUseScene: { value: 0 }, uSteps: { value: QK.lakeSteps }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uProj: { value: new THREE.Matrix4() },
                 uPondCenter: { value: new THREE.Vector2(PARK_POND.cx, PARK_POND.cz) }, uNrm: { value: WATER_NRM }, uPondR: { value: PARK_POND.rx }, uShore: { value: LAKE_SHORE },
-                uHero: { value: new THREE.Vector3(0, -999, 0) }, uHeroA: { value: HERO_REFL.shadow }, uHeroB: { value: HERO_REFL.ghost }, uHor: { value: new THREE.Color('#bcd3df') }, uZen: { value: new THREE.Color('#5b8fc4') },
+                uHero: { value: new THREE.Vector3(0, -999, 0) }, uHeroA: { value: HERO_REFL.shadow }, uSkyl: { value: POND_SKYL_TEX }, uHeroB: { value: HERO_REFL.ghost }, uHor: { value: new THREE.Color('#bcd3df') }, uZen: { value: new THREE.Color('#5b8fc4') },
                 uSun: { value: new THREE.Vector3(-0.36, 0.82, 0.44).normalize() }, uDay: { value: 1 },
             },
             side: THREE.DoubleSide, transparent: true, depthWrite: true, toneMapped: false,

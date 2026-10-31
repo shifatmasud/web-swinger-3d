@@ -19,23 +19,43 @@ function put(a0: number, a1: number, e: number, r: number, g: number, b: number)
     const n = Math.max(1, Math.ceil(Math.abs(d) / TAU * SKYLINE_N)), s = d / n;
     for (let k = 0; k <= n; k++) { const i = bin(a0 + s * k); if (e > el[i]) { el[i] = e; cr[i] = r; cg[i] = g; cb[i] = b; } }
 }
-export function projectSkyline(cx: number, cz: number) {
+function fillRing(cx: number, cz: number, baseY: number, island: boolean) {
     el.fill(0);
     for (let i = 0; i < buildings.length; i++) {
         const b = buildings[i]; if (b.host !== undefined) continue;
         const mx = (b.x0 + b.x1) * 0.5 - cx, mz = (b.z0 + b.z1) * 0.5 - cz, dist = Math.max(8, Math.hypot(mx, mz) - 0.5 * Math.hypot(b.x1 - b.x0, b.z1 - b.z0));
         if (dist > 1600) continue;
-        const e = Math.atan2((b.y0 || 0) + b.h - WATER_Y, dist); if (e < 0.004) continue;
+        const e = Math.atan2((b.y0 || 0) + b.h - baseY, dist); if (e < 0.004) continue;
         const a = [Math.atan2(b.x0 - cx, b.z0 - cz), Math.atan2(b.x1 - cx, b.z0 - cz), Math.atan2(b.x0 - cx, b.z1 - cz), Math.atan2(b.x1 - cx, b.z1 - cz)];
         let lo = a[0], hi = a[0]; for (const v of a) { let dv = v - a[0]; if (dv > Math.PI) dv -= TAU; if (dv < -Math.PI) dv += TAU; lo = Math.min(lo, a[0] + dv); hi = Math.max(hi, a[0] + dv); }
         const p = PAL[(i * 2654435761 >>> 0) % PAL.length]; put(lo, hi, e, p[0], p[1], p[2]);
     }
+    if (!island) return;
     const R = ISLAND.R * 1.15;
     for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++) {
         const x = ISLAND.cx + i / 6 * R, z = ISLAND.cz + j / 6 * R, h = islandH(x, z); if (h == null || h < WATER_Y + 0.5) continue;
         const dx = x - cx, dz = z - cz, dist = Math.max(10, Math.hypot(dx, dz)), a = Math.atan2(dx, dz), w = (R / 6) / dist;
         put(a - w, a + w, Math.atan2(h - WATER_Y, dist), 0.16, 0.42, 0.2);
     }
-    for (let i = 0; i < SKYLINE_N; i++) { const o = i * 4; data[o] = cr[i] * 255; data[o + 1] = cg[i] * 255; data[o + 2] = cb[i] * 255; data[o + 3] = Math.min(255, el[i] / SKY_EL_MAX * 255); }
-    SKYLINE_TEX.needsUpdate = true;
+}
+function writeRing(d: Uint8Array, tex: THREE.DataTexture) {
+    for (let i = 0; i < SKYLINE_N; i++) { const o = i * 4; d[o] = cr[i] * 255; d[o + 1] = cg[i] * 255; d[o + 2] = cb[i] * 255; d[o + 3] = Math.min(255, el[i] / SKY_EL_MAX * 255); }
+    tex.needsUpdate = true;
+}
+export function projectSkyline(cx: number, cz: number) { fillRing(cx, cz, WATER_Y, true); writeRing(data, SKYLINE_TEX); }
+
+/* #5 park pond (Shifat 2:32 PM 'environment reflection on park lake, pond not showing'): the same zero-render illusion, projected once from the pond
+   centre - the city towers around the park plus the ring of cherry / leafy trees on the bank (a noisy pink-green band ~12-30 m out). */
+const pondData = new Uint8Array(SKYLINE_N * 4);
+export const POND_SKYL_TEX = new THREE.DataTexture(pondData, SKYLINE_N, 1, THREE.RGBAFormat);
+POND_SKYL_TEX.wrapS = THREE.RepeatWrapping; POND_SKYL_TEX.magFilter = POND_SKYL_TEX.minFilter = THREE.LinearFilter;
+export function projectPondSkyline(cx: number, cz: number, baseY: number, r: number) {
+    fillRing(cx, cz, baseY, false);
+    for (let i = 0; i < SKYLINE_N; i++) { cr[i] *= 0.6; cg[i] *= 0.62; cb[i] *= 0.68; }   // towers seen past the shady bank read darker in a small pond
+    for (let i = 0; i < SKYLINE_N; i++) {
+        const a = (i / SKYLINE_N - 0.5) * TAU, n = 0.5 + 0.25 * Math.sin(a * 7.0 + 1.3) + 0.15 * Math.sin(a * 17.0 + 0.4) + 0.1 * Math.sin(a * 41.0);
+        const dist = r + 6 + 10 * (0.5 + 0.5 * Math.sin(a * 3.0 + 2.0)), e = Math.atan2(5.5 + 4.5 * n, dist), pink = 0.5 + 0.5 * Math.sin(a * 5.0 + 0.7);
+        if (e > el[i]) { el[i] = e; cr[i] = 0.14 + 0.36 * pink; cg[i] = 0.3 - 0.06 * pink; cb[i] = 0.14 + 0.2 * pink; }
+    }
+    writeRing(pondData, POND_SKYL_TEX);
 }
