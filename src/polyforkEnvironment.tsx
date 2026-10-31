@@ -121,7 +121,40 @@ function mergeParts(parts: Part[]): Part[] {
     return out;
 }
 
-function InstancedAsset({ prefix, model, placements }: { prefix: string; model: Model; placements: Placement[] }) {
+
+/* 25 fps pass (Oct 31): every building type used to be its own instanced draw call (~15 calls for the city). Opaque parts that share the
+   common city material now live in ONE BatchedMesh: one draw call, per-building frustum culling done by three.js (multi-draw). Other parts
+   (glass, unique materials) stay instanced. */
+function makeBuildingBatch(entries: { model: Model; placements: Placement[] }[]) {
+    const groups = new Map<THREE.Material, { geo: THREE.BufferGeometry; placements: Placement[] }[]>();
+    for (const { model, placements } of entries) {
+        if (!placements.length) continue;
+        for (const part of model.parts) {
+            if (Array.isArray(part.material)) continue;
+            const m = part.material as THREE.Material; if ((m as any).transparent) continue;
+            const a = groups.get(m) ?? []; a.push({ geo: part.geometry, placements }); groups.set(m, a);
+        }
+    }
+    const meshes: THREE.BatchedMesh[] = [], used = new Set<THREE.BufferGeometry>();
+    const keys = (g: THREE.BufferGeometry) => Object.keys(g.attributes).sort().join(',');
+    for (const [mat, list0] of groups) {
+        const list = list0.filter((l) => keys(l.geo) === keys(list0[0].geo) && !!l.geo.index === !!list0[0].geo.index);
+        if (list.length < 2) continue;
+        const indexed = !!list[0].geo.index;
+        let nv = 0, ni = 0, nInst = 0; for (const l of list) { nv += l.geo.attributes.position.count; ni += l.geo.index ? l.geo.index.count : 0; nInst += l.placements.length; }
+        const bm = new THREE.BatchedMesh(nInst, nv, indexed ? ni : undefined, mat);
+        bm.sortObjects = false; bm.perObjectFrustumCulled = true; bm.frustumCulled = false; bm.name = 'polyfork-building-batch';
+        const o = new THREE.Object3D();
+        for (const l of list) {
+            const gid = bm.addGeometry(l.geo); used.add(l.geo);
+            for (const p of l.placements) { o.position.set(p.x, p.y, p.z); o.rotation.set(0, p.yaw, 0); o.scale.set(p.sx, p.sy, p.sz); o.updateMatrix(); bm.setMatrixAt(bm.addInstance(gid), o.matrix); }
+        }
+        meshes.push(bm);
+    }
+    return { meshes, used };
+}
+
+function InstancedAsset({ prefix, model, placements, skip }: { prefix: string; model: Model; placements: Placement[]; skip?: Set<THREE.BufferGeometry> }) {
     const refs = useRef<(THREE.InstancedMesh | null)[]>([]);
     /* Shifat 9:43 AM 'freeze what's not visible': each asset is ONE instanced batch for the whole city, so every building was drawn every frame even
        behind the camera. Now every 6th frame the instances inside the view frustum are packed to the front of the batch and only those are drawn
@@ -166,7 +199,7 @@ function InstancedAsset({ prefix, model, placements }: { prefix: string; model: 
     });
     if (!placements.length) return null;
     return <group name={`${prefix}-${model.id}`}>
-        {model.parts.map((part, index) => <instancedMesh
+        {model.parts.map((part, index) => skip?.has(part.geometry) ? null : <instancedMesh
             key={index}
             ref={(mesh) => { refs.current[index] = mesh; }}
             args={[part.geometry, part.material, placements.length]}
@@ -249,13 +282,16 @@ export function PolyforkBuildings() {
         };
     }, [buckets]);
 
+    const batch = useMemo(() => makeBuildingBatch([...CITY_ASSETS.map((asset) => ({ model: byId.get(asset.id)!, placements: buckets.groups.get(asset.id)! })), { model: byId.get('subway-entrance-c05ada')!, placements: buckets.subway }]), [byId, buckets]);
+    useEffect(() => () => { for (const m of batch.meshes) m.dispose(); }, [batch]);
     return <group name="polyfork-city-buildings">
+        {batch.meshes.map((m, i) => <primitive key={'b' + i} object={m} />)}
         {CITY_ASSETS.map((asset) => {
             const model = byId.get(asset.id)!;
             const placements = buckets.groups.get(asset.id)!;
-            return <InstancedAsset key={asset.id} prefix="polyfork-building" model={model} placements={placements} />;
+            return <InstancedAsset key={asset.id} prefix="polyfork-building" model={model} placements={placements} skip={batch.used} />;
         })}
-        <InstancedAsset prefix="polyfork-underground-subway" model={byId.get('subway-entrance-c05ada')!} placements={buckets.subway} />
+        <InstancedAsset prefix="polyfork-underground-subway" model={byId.get('subway-entrance-c05ada')!} placements={buckets.subway} skip={batch.used} />
     </group>;
 }
 

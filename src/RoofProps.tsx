@@ -50,8 +50,8 @@ export function RoofProps({ harborOnly = false }: { harborOnly?: boolean }) {   
         let tries = 0, dead = false; const ray = new THREE.Raycaster(), dn = new THREE.Vector3(0, -1, 0), o = new THREE.Vector3();
         const run = () => {
             if (dead) return; const grp = scene.getObjectByName('polyfork-city-buildings');
-            const meshes: THREE.Object3D[] = []; grp?.traverse((c: any) => { if (c.isInstancedMesh && c.count > 0) meshes.push(c); });
-            if (meshes.length < 4 && tries++ < 40) { setTimeout(run, 500); return; }
+            const meshes: THREE.Object3D[] = []; grp?.traverse((c: any) => { if ((c.isInstancedMesh && c.count > 0) || c.isBatchedMesh) meshes.push(c); });
+            if (meshes.length < 2 && tries++ < 40) { setTimeout(run, 500); return; }
             const out: Record<string, P[]> = { ac: [], fan: [], vent: [], hatch: [], tank: [], legs: [] }, names = new Map<P[], string>([[spotsRaw.ac, 'ac'], [spotsRaw.fan, 'fan'], [spotsRaw.vent, 'vent'], [spotsRaw.hatch, 'hatch'], [spotsRaw.tank, 'tank'], [spotsRaw.legs, 'legs']]);
             ray.far = 14;
             for (const sp of spotsRaw.spots) {
