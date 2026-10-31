@@ -56,7 +56,7 @@ export function shadowGeo(o: ShadowOpts) {
     const geo = tagLights(mergeGeometries(parts, false)!); geo.computeBoundingSphere(); return geo;
 }
 export function shadowMat(time: { value: number }, rate: number, pedestrian = false) {
-    const m = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, blending: THREE.NoBlending, emissive: new THREE.Color('#1c2230'), emissiveIntensity: 0.5 });
+    const m = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, blending: THREE.NormalBlending, emissive: new THREE.Color('#1c2230'), emissiveIntensity: 0.5 });
     const gaitMasks = pedestrian
         ? `float armRegion = smoothstep(0.26, 0.34, ax) * (1.0 - smoothstep(1.66, 1.74, y));
            float wl = (1.0 - smoothstep(0.92, 1.02, y)) * (1.0 - armRegion);

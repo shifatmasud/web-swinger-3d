@@ -64,7 +64,7 @@ export function robotGeo(o: RobotOpts) {
 export function robotMat(parts: { m: number; piv?: number[]; s?: number }[], scale: number, time: { value: number }, speed: number) {
     const piv = Array.from({ length: 8 }, (_, i) => { const p = parts[i]; return p && p.piv ? new THREE.Vector4(p.piv[0] * scale, p.piv[1] * scale, p.piv[2] * scale, p.m) : new THREE.Vector4(0, 0, 0, 0); });
     const sgn = Array.from({ length: 8 }, (_, i) => (parts[i] && parts[i].s) || 0);
-    const m = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, blending: THREE.NoBlending });
+    const m = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, blending: THREE.NormalBlending });
     m.onBeforeCompile = (sh) => {
         occludeFade(sh);
         sh.uniforms.uRT = time; sh.uniforms.uPiv = { value: piv }; sh.uniforms.uSgn = { value: sgn }; sh.uniforms.uSpd = { value: speed };
