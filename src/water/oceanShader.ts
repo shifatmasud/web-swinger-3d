@@ -94,7 +94,7 @@ export const OCEAN_FRAG = '#include <packing>\n#define WG_CHOP gChop\nbool gChop
         // bed albedo: white tropical sand shallow, darker rock / weed deeper, with soft ripple marks
         vec3 alb = mix(vec3(0.30, 0.34, 0.26), vec3(0.93, 0.87, 0.70), bs.g) * (0.86 + 0.14 * bs.b) * (0.93 + 0.07 * sin(hx.x * 1.7 + sin(hx.y * 0.9) * 2.0));
         // caustics: the wavy surface focuses sunlight into moving bright webs on the bed (two scrolling cell layers, min = sharp lines)
-        vec3 causC = causRGB(hx * 0.5, uTime * 0.8) * 2.6 * exp(-dep * 0.10) * uDay * (1.0 - smoothstep(25.0, 90.0, length(cameraPosition - vW)));   // real caustic network (faded with depth / distance)
+        vec3 causC = causRGB(hx * 0.5, uTime * 0.8) * 1.6 * exp(-dep * 0.28) * uDay * (1.0 - smoothstep(25.0, 90.0, length(cameraPosition - vW)));   // real caustic network (faded with depth / distance)
         float sunK = mix(0.25, 1.0, uDay) * (0.75 + 0.25 * max(uSun.y, 0.0));
         vec3 bedL = alb * sunK * (0.82 + causC);
         // Beer-Lambert along the real path: down to the bed along the sunlight (~depth) and back up along the refracted view ray (t1); red dies first
